@@ -256,6 +256,14 @@ extern int ej_wl_rate_2g(int eid, webs_t wp, int argc, char_t **argv);
 extern int ej_wl_rate_5g(int eid, webs_t wp, int argc, char_t **argv);
 extern int ej_wl_rate_5g_2(int eid, webs_t wp, int argc, char_t **argv);
 #endif
+#ifdef CONFIG_BCMWL5
+extern int ej_wl_cap_2g(int eid, webs_t wp, int argc, char **argv);
+extern int ej_wl_cap_5g(int eid, webs_t wp, int argc, char **argv);
+extern int ej_wl_cap_5g_2(int eid, webs_t wp, int argc, char **argv);
+extern int ej_wl_chipnum_2g(int eid, webs_t wp, int argc, char **argv);
+extern int ej_wl_chipnum_5g(int eid, webs_t wp, int argc, char **argv);
+extern int ej_wl_chipnum_5g_2(int eid, webs_t wp, int argc, char **argv);
+#endif
 extern int ej_nat_accel_status(int eid, webs_t wp, int argc, char_t **argv);
 #ifdef RTCONFIG_PROXYSTA
 int ej_wl_auth_psta(int eid, webs_t wp, int argc, char_t **argv);
@@ -1446,6 +1454,108 @@ ej_get_all_basic_clientlist(int eid, webs_t wp, int argc, char_t **argv)
 
 	return ret;
 }
+
+#ifdef RTCONFIG_INTERNETCTRL
+static time_t get_ic_local_timestamp(char *timestamp)
+{
+	char *ptr=NULL;
+	time_t ts=0;
+	ts = (time_t)strtol(timestamp+2, &ptr, 10);
+	struct tm *plocal_tm = localtime(&ts);
+	return mktime(plocal_tm);
+}
+
+/* info: mac, ip, name, isonline, networkAccess(ICFILTER), starttime(ICFILTER), endtime(ICFILTER) */
+static int ej_get_clientlist_reportstate(int eid, webs_t wp, int argc, char_t **argv)
+{
+	int ret = 0, networkAccess=0;
+	int mac_idx=0, daytime_idx=0;
+	time_t starttime=0, endtime=0;
+	struct json_object *clients = NULL, *macArray=NULL, *client_obj=NULL, *allclient_obj=NULL;
+	struct json_object *ip = NULL, *name = NULL, *type = NULL, *isOnline = NULL;
+	char *stime_t=NULL;
+	char icfilter_mac[512]={0}, icfilter_macfilter_daytime[512]={0};
+	char icfilter_mac_tmp[512]={0}, *icfilter_mac_next=NULL;
+	char icfilter_daytime_tmp[512]={0}, *icfilter_daytime_next=NULL;
+	char starttime_buf[16]={0}, endtime_buf[16]={0};
+
+	time_t now = time(NULL);
+
+	macArray = json_object_new_array();
+	allclient_obj = json_object_new_object();
+
+	strlcpy(icfilter_mac, nvram_safe_get("ICFILTER_MAC"), sizeof(icfilter_mac));
+	strlcpy(icfilter_macfilter_daytime, nvram_safe_get("ICFILTER_MACFILTER_DAYTIME"), sizeof(icfilter_macfilter_daytime));
+
+	if(pids("networkmap")){
+			clients = json_object_new_object();
+			get_client_detail_info(clients, macArray, SHMKEY_LAN);
+	}
+
+	if(clients) {
+		json_object_object_foreach(clients, key, val){
+			client_obj = json_object_new_object();
+			mac_idx = 0;
+			if(json_object_object_get_ex(val, "ip", &ip))
+				json_object_object_add(client_obj, "ip", ip);
+
+			if(json_object_object_get_ex(val, "name", &name))
+				json_object_object_add(client_obj, "deviceName", name);
+
+			if(json_object_object_get_ex(val, "type", &type))
+				json_object_object_add(client_obj, "deviceType", type);
+
+			if(json_object_object_get_ex(val, "isOnline", &isOnline))
+				json_object_object_add(client_obj, "Connectivity", isOnline);
+
+			if (strstr(icfilter_mac, key)!=NULL){
+				foreach_62(icfilter_mac_tmp, icfilter_mac, icfilter_mac_next){
+					mac_idx++;
+					if(!strcmp(icfilter_mac_tmp, key)){
+						daytime_idx = 0;
+						foreach_62(icfilter_daytime_tmp, icfilter_macfilter_daytime, icfilter_daytime_next){
+							daytime_idx++;
+							if(mac_idx == daytime_idx){
+								stime_t = strtok(icfilter_daytime_tmp, "<");
+								starttime = get_ic_local_timestamp(stime_t);
+								snprintf(starttime_buf, sizeof(starttime_buf), "%ld", starttime);
+								json_object_object_add(client_obj, "starttime", json_object_new_string(starttime_buf));
+								if(stime_t != NULL){
+									stime_t = strtok(NULL, "<");
+									if(stime_t != NULL){
+										endtime = get_ic_local_timestamp(stime_t);
+										snprintf(endtime_buf, sizeof(endtime_buf), "%ld", endtime);
+										json_object_object_add(client_obj, "endtime", json_object_new_string(endtime_buf));
+									}else
+										endtime = 0;
+								}
+								if(icfilter_daytime_tmp[1] == '0'){
+									json_object_object_add(client_obj, "networkAccess", json_object_new_string("0"));
+									networkAccess = (now > starttime && (endtime == 0 || now < endtime))?0:1;
+								}
+								else{
+									json_object_object_add(client_obj, "networkAccess", json_object_new_string("1"));
+									networkAccess = (now > starttime && (endtime == 0 || now < endtime))?1:0;
+								}
+								json_object_object_add(client_obj, "networkAccess_now", json_object_new_string(networkAccess?"1":"0"));
+							}
+						}
+						break;
+					}
+				}
+			}
+			json_object_object_add(allclient_obj, key, client_obj);
+		}
+	}
+	ret = websWrite(wp, "%s", json_object_to_json_string(allclient_obj));
+
+	if(clients)
+		json_object_put(clients);
+	if(allclient_obj)
+		json_object_put(allclient_obj);
+	return ret;
+}
+#endif
 
 static int get_basic_clientlist_info(webs_t wp, int opt)
 {
@@ -2645,6 +2755,9 @@ int validate_instance(webs_t wp, char *name, json_object *root)
 					if(value)cprintf("%s:%d find %s value=%s\n",__FUNCTION__,__LINE__, tmp,value);
 					if(value&& strcmp(nvram_safe_get(tmp), value))
 					{
+						if(strstr(name, "maclist") && check_cmd_injection_blacklist(value))
+							continue;
+
 						nvram_check_and_set_for_prefix(name, tmp, value);
 						//nvram_set(tmp, value);
 						found = NVRAM_MODIFIED_BIT|NVRAM_MODIFIED_WL_BIT;
@@ -2662,6 +2775,9 @@ int validate_instance(webs_t wp, char *name, json_object *root)
 				if(check_user_agent(user_agent) == FROM_IFTTT || check_user_agent(user_agent) == FROM_ALEXA)
 					IFTTT_DEBUG("[HTTPD] nvram set %s = %s\n", tmp, value);
 #endif
+				if(strstr(name, "maclist") && check_cmd_injection_blacklist(value))
+					continue;
+
 				nvram_check_and_set_for_prefix(name, tmp, value);
 #ifdef RTCONFIG_LANTIQ
 				wave_app_flag = wave_handle_app_flag(tmp, wave_app_flag);
@@ -3402,7 +3518,7 @@ int validate_apply(webs_t wp, json_object *root) {
 				}
 #endif
 				if( !strcmp(name, "PM_MY_EMAIL") || !strcmp(name, "PM_SMTP_AUTH_USER") || !strcmp(name, "fb_email")){
-					if (strchr(value, '`') != NULL)
+					if(check_cmd_injection_blacklist(value))
 						continue;
 				}
 #ifdef RTCONFIG_CFGSYNC
@@ -7340,6 +7456,12 @@ static int check_internetState(char *timeList) {
 						break;
 					}
 				}
+				else if(week_start == 0 && week_end == 0 && system_week == 7) {//for sunday
+					if(hour_start <= system_hour && hour_end > system_hour) {
+						state = 1;
+						break;
+					}
+				}
 			}
 		}
 	}
@@ -8220,7 +8342,7 @@ static int get_client_detail_info(struct json_object *clients, struct json_objec
 			p_client_info_tab->mac_addr[i][2],p_client_info_tab->mac_addr[i][3],
 			p_client_info_tab->mac_addr[i][4],p_client_info_tab->mac_addr[i][5]
 			);
-
+#ifdef RTCONFIG_AMAS
 			if(is_amas_support()) {
 				/* replace client mac if needed */
 				if (allClientList)
@@ -8229,7 +8351,7 @@ static int get_client_detail_info(struct json_object *clients, struct json_objec
 				if (is_re_node(mac_buf, 1))
 					continue;
 			}
-
+#endif
 			json_object_array_add(macArray, json_object_new_string(mac_buf));
 
 			sprintf(type, "%d", p_client_info_tab->type[i]);
@@ -8544,169 +8666,6 @@ static int get_client_detail_info(struct json_object *clients, struct json_objec
 	if(custom_attr_get)
 		json_object_put(custom_attr_get);
 	CLIENT_DPRINTF("get_client_detail_info finish\n");
-
-	return 0;
-}
-
-static int ej_get_clientlist_maclist(int eid, webs_t wp, int argc, char_t **argv)
-{
-        if(!pids("networkmap")){
-                websWrite(wp, "[]");
-                return 0;
-        }
-
-	struct json_object *macArray = json_object_new_array();
-	P_CLIENT_DETAIL_INFO_TABLE p_client_info_tab;
-	void *shared_client_info = (void *) 0;
-	char mac_buf[32];
-	int i, lock, shm_client_info_id;
-
-#ifdef RTCONFIG_AMAS
-	char ipaddr[16];
-	char clientMac[18];
-	struct json_object *amasList = NULL, *amasReClientList = NULL, *amasWiredClientList = NULL;
-	int amasList_status = 0, amasReClientList_status = 0, amasWiredClientList_status = 0;
-	int amasClient = false;
-	struct json_object *custom_attr_get = NULL;
-	struct json_object *amasPAP_attr_get = NULL;
-	struct json_object *allClientList = NULL;
-
-	lock = file_lock(CLIENTLIST_FILE_LOCK);
-	//get amas cap re info
-	amasList = json_object_new_object();
-	amasList_status = get_amas_info(amasList);
-	//get amas re client info
-	amasReClientList = json_object_new_object();
-	amasReClientList_status = get_amas_re_client_info(amasReClientList);
-	//get amas wired client info
-	amasWiredClientList = json_object_new_object();
-	amasWiredClientList_status = get_amas_wired_client_info(amasWiredClientList, AMAS_JSON_CLIENT_KEY);
-	allClientList = json_object_from_file(CLIENT_LIST_JSON_PATH);
-	file_unlock(lock);
-#endif
-
-	lock = file_lock("networkmap");
-	shm_client_info_id = shmget((key_t)SHMKEY_LAN, sizeof(CLIENT_DETAIL_INFO_TABLE), 0666|IPC_CREAT);
-	if (shm_client_info_id == -1){
-		fprintf(stderr,"shmget failed\n");
-		file_unlock(lock);
-		json_object_put(macArray);
-#ifdef RTCONFIG_AMAS
-		json_object_put(allClientList);
-#endif
-		websWrite(wp, "[]");
-		return 0;
-	}
-
-	shared_client_info = shmat(shm_client_info_id,(void *) 0,0);
-	if (shared_client_info == (void *)-1){
-		fprintf(stderr, "shmat failed\n");
-		file_unlock(lock);
-		websWrite(wp, "[]");
-		json_object_put(macArray);
-#ifdef RTCONFIG_AMAS
-		json_object_put(allClientList);
-#endif
-		return 0;
-	}
-
-	p_client_info_tab = (P_CLIENT_DETAIL_INFO_TABLE)shared_client_info;
-	for(i = 0; i < p_client_info_tab->ip_mac_num; i++) {
-#ifndef RTCONFIG_AMAS
-		if(p_client_info_tab->device_flag[i]&(1<<FLAG_EXIST)) {
-#endif
-			memset(mac_buf, 0, sizeof(mac_buf));
-			sprintf(mac_buf, "%02X:%02X:%02X:%02X:%02X:%02X",
-				p_client_info_tab->mac_addr[i][0],p_client_info_tab->mac_addr[i][1],
-				p_client_info_tab->mac_addr[i][2],p_client_info_tab->mac_addr[i][3],
-				p_client_info_tab->mac_addr[i][4],p_client_info_tab->mac_addr[i][5]
-				);
-#ifdef RTCONFIG_AMAS
-			if(is_amas_support()) {
-				memset(ipaddr, 0, sizeof(ipaddr));
-				sprintf(ipaddr, "%d.%d.%d.%d", p_client_info_tab->ip_addr[i][0],p_client_info_tab->ip_addr[i][1],
-				p_client_info_tab->ip_addr[i][2],p_client_info_tab->ip_addr[i][3]);
-				amasClient = false;
-
-				/* replace client mac if needed */
-				memset(clientMac, 0, sizeof(clientMac));
-				snprintf(clientMac, sizeof(clientMac), "%s", mac_buf);
-				if (allClientList && get_amas_client_mac(allClientList, ipaddr, clientMac, sizeof(clientMac))) {
-					memset(mac_buf, 0, sizeof(mac_buf));
-					snprintf(mac_buf, sizeof(mac_buf), "%s", clientMac);
-				}
-				if (is_re_node(mac_buf, 1))
-					continue;
-
-				if(amasList_status) {//filter RE node
-					json_object_object_get_ex(amasList, mac_buf, &custom_attr_get);
-					if(custom_attr_get != NULL) {
-						amasClient = true;
-						continue;
-					}
-				}
-				if(amasReClientList_status) {
-					json_object_object_get_ex(amasReClientList, mac_buf, &custom_attr_get);
-					if(custom_attr_get != NULL) {
-						struct json_object *amas_re_get_papMac = NULL, *amas_re_get_online = NULL;
-						json_object_object_get_ex(custom_attr_get, "papMac", &amas_re_get_papMac);
-						if(amasList_status) {
-							json_object_object_get_ex(amasList, json_object_get_string(amas_re_get_papMac), &amasPAP_attr_get);
-							if(amasPAP_attr_get != NULL) {
-								json_object_object_get_ex(amasPAP_attr_get, "online", &amas_re_get_online);
-								if(!strcmp(json_object_get_string(amas_re_get_online), "1"))
-									amasClient = true;
-							}
-						}
-					}
-				}
-				if(amasWiredClientList_status) {
-					json_object_object_get_ex(amasWiredClientList, mac_buf, &custom_attr_get);
-					if(custom_attr_get != NULL) {
-						struct json_object *amas_re_get_papMac = NULL, *amas_re_get_online = NULL;
-						json_object_object_get_ex(custom_attr_get, "papMac", &amas_re_get_papMac);
-						if(amasList_status) {
-							json_object_object_get_ex(amasList, json_object_get_string(amas_re_get_papMac), &amasPAP_attr_get);
-							if(amasPAP_attr_get != NULL) {
-								json_object_object_get_ex(amasPAP_attr_get, "online", &amas_re_get_online);
-								if(!strcmp(json_object_get_string(amas_re_get_online), "1"))
-									amasClient = true;
-							}
-						}
-					}
-				}
-				if(!amasClient)
-					continue;
-			}
-#endif
-			json_object_array_add(macArray, json_object_new_string(mac_buf));
-#ifndef RTCONFIG_AMAS
-		}
-#endif
-	}
-
-	shmdt(shared_client_info);
-	file_unlock(lock);
-
-	websWrite(wp, "%s", json_object_to_json_string(macArray));
-
-	if(macArray)
-		json_object_put(macArray);
-
-#ifdef RTCONFIG_AMAS
-	if(amasList)
-		json_object_put(amasList);
-	if(amasReClientList)
-		json_object_put(amasReClientList);
-	if(amasWiredClientList)
-		json_object_put(amasWiredClientList);
-	if(custom_attr_get)
-		json_object_put(custom_attr_get);
-	if(amasPAP_attr_get)
-		json_object_put(amasPAP_attr_get);
-	if(allClientList)
-		json_object_put(allClientList);
-#endif
 
 	return 0;
 }
@@ -11761,8 +11720,10 @@ wps_finish:
 		!strcmp(action_mode, "firmware_check")) {
 		char event_msg[64] = {0};
 
-		if (!strcmp(action_mode, "firmware_check"))
+		if (!strcmp(action_mode, "firmware_check")){
+			nvram_set("webs_update_trigger", "cfgsync_firmware_check");
 			snprintf(event_msg, sizeof(event_msg), HTTPD_GENERIC_MSG, EID_HTTPD_FW_CHECK);
+		}
 		else if (!strcmp(action_mode, "firmware_upgrade"))
 			snprintf(event_msg, sizeof(event_msg), HTTPD_GENERIC_MSG, EID_HTTPD_FW_UPGRADE);
 
@@ -14329,7 +14290,6 @@ static void GetWanStatus(char *state)
 	char prefix2[CKN_STR64];
 	char tmp[CKN_STR64], tmp2[CKN_STR64];
 	int unit/*, idx=0*/;
-	int det_wait=0;
 
 	memset(prefix, '\0', sizeof(prefix));
 	memset(prefix2, '\0', sizeof(prefix2));
@@ -14346,18 +14306,7 @@ static void GetWanStatus(char *state)
 		else
 			snprintf(prefix2, sizeof(prefix2), "autodet%d_", unit);
 
-		det_wait=10;
-		nvram_set_int(strcat_r(prefix2, "state", tmp2), AUTODET_STATE_INITIALIZING);
-		notify_rc_after_period_wait("start_autodet", 0);
-		while (nvram_get_int(strcat_r(prefix2, "state", tmp2)) == AUTODET_STATE_INITIALIZING && det_wait--)
-			sleep(1);
-		printf("\nthe autodet result:%d\n", nvram_get(strcat_r(prefix2, "state", tmp2))?nvram_get_int(strcat_r(prefix2, "state", tmp2)):-1);
-
 		if (nvram_get_int(strcat_r(prefix2, "state", tmp2)) == AUTODET_STATE_FINISHED_NOLINK) {
-			if(nvram_get_int(strcat_r(prefix, "auxstate_t", tmp))==1) {
-				nvram_set("autodet_state", "0");
-				notify_rc_after_period_wait("start_autodet", 0);
-			}
 			wanstatus = BLE_WAN_STATUS_ALL_DISCONN;
 		}
 		else if (nvram_get_int(strcat_r(prefix2, "state", tmp2)) == AUTODET_STATE_FINISHED_WITHPPPOE
@@ -14878,13 +14827,11 @@ void do_get_timezone_cgi(char *url, FILE *stream){
 	json_object_put(res);
 }
 
-// 2010.09 James. {
 static char no_cache_IE7[] =
 "Cache-Control: no-cache, no-store, must-revalidate\r\n"
 "Pragma: no-cache\r\n"
 "Expires: 0"
 ;
-// 2010.09 James. }
 
 static char no_cache[] =
 "Cache-Control: no-cache, no-store, must-revalidate\r\n"
@@ -15472,6 +15419,94 @@ do_set_TM_EULA_cgi(char *url, FILE *stream)
 	}
 	json_object_put(root);
 }
+ 
+#if defined(RTCONFIG_BWDPI)
+static void
+do_wrs_wbl_cgi(char *url, FILE *stream)
+{
+	struct json_object *root = NULL;
+	struct json_object *resp = json_object_new_object();
+	struct json_object *data = json_object_new_array();
+	do_json_decode(&root);
+
+	char *action = safe_get_cgi_json("action", root);
+	char *type = safe_get_cgi_json("type", root);
+	char *mac = safe_get_cgi_json("mac", root);
+	char *url_t = safe_get_cgi_json("url_type", root);
+	char *url_s = safe_get_cgi_json("url", root);
+
+	char path[256] = {0};
+	char buf[8] = {0};
+	char tmp[256] = {0};
+	char tmp2[256] = {0};
+	int len = sizeof(path);
+	int bflag = atoi(type);
+	int status = 0;
+
+	char *head = NULL;
+	char *end = NULL;
+	FILE *fp = NULL;
+
+	_dprintf("[%s(%d)] %s, %d, %s, %s, %s\n", __FUNCTION__, __LINE__, action, bflag, mac, url_t, url_s);
+
+	if (action == NULL) {
+		strlcpy(buf, "0", sizeof(buf));
+		goto END;
+	}
+
+	if (url_t == NULL) {
+		url_t = "url";
+	}
+
+	if (mac == NULL) {
+		mac = "";
+	}
+
+
+	if (!strcmp(action, "add") && url_s != NULL) {
+		if (check_xss_blacklist(url_s, 0)) {
+			goto END;
+		}
+		status = WRS_WBL_WRITE_LIST(bflag, mac, url_t, url_s);
+		if (status) notify_rc("restart_wrs_wbl");
+	}
+	else if (!strcmp(action, "del") && url_s != NULL) {
+		if (check_xss_blacklist(url_s, 0)) {
+			goto END;
+		}
+		status = WRS_WBL_DEL_LIST(bflag, mac, url_t, url_s);
+		if (status) notify_rc("restart_wrs_wbl");
+	}
+	else if (!strcmp(action, "get")) {
+		status = WRS_WBL_GET_PATH(bflag, mac, path, len);
+		if (status == 1) {
+			if ((fp = fopen(path, "r")) != NULL) {
+				while (fgets(tmp2, sizeof(tmp2), fp) != NULL) {
+					head = strchr(tmp2, ' ')+1;
+					end = strchr(tmp2, 0xa)+1;
+					snprintf(tmp, end-head, "%s", head);
+					json_object_array_add(data, json_object_new_string(tmp));
+				}
+			}
+		}
+		else {
+			json_object_array_add(data, json_object_new_string(tmp));
+		}
+	}
+
+	/* item : success */
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%d", status);
+
+END:
+	json_object_object_add(resp, "success", json_object_new_string(buf));
+	json_object_object_add(resp, "data", data);
+	websWrite(stream, "%s\n", json_object_to_json_string(resp));
+	if (root) json_object_put(root);
+	if (resp) json_object_put(resp);
+	return;
+}
+#endif
 
 #define RFC1123FMT "%a, %d %b %Y %H:%M:%S GMT"
 static int
@@ -15573,7 +15608,7 @@ login_cgi(webs_t wp, char_t *urlPrefix, char_t *webDir, int arg,
 	}
 	(void) strftime( timebuf, sizeof(timebuf), RFC1123FMT, gmtime( &now ) );
 	websWrite(wp,"Date: %s\r\n", timebuf );
-	if (fromapp_flag == 0){
+	if (fromapp_flag == FROM_BROWSER || fromapp_flag == FROM_WebView){
 		websWrite(wp,"Content-Type: %s\r\n", "text/html");
 	}else{
 		websWrite(wp,"Content-Type: %s\r\n", "application/json;charset=UTF-8");
@@ -16616,6 +16651,181 @@ do_clean_offline_clientlist_cgi(char *url, FILE *stream)
 }
 
 
+#if defined(RTCONFIG_AMAZON_WSS)
+static void
+do_amazon_wss_cgi(char *url, FILE *stream)
+{
+	int ret=200;
+	struct json_object *root=NULL;
+	char *wss_enable=NULL, *do_rc=NULL;
+
+	do_json_decode(&root);
+
+	wss_enable = safe_get_cgi_json("wss_enable", root);
+	do_rc = safe_get_cgi_json("do_rc", root);
+
+	if(!isValidEnableOption(wss_enable, 1)){
+		HTTPD_DBG("invalid enabled option\n");
+		ret = 4001;
+		goto FINISH;
+	}
+
+	if(!isValidEnableOption(do_rc, 1)){
+		HTTPD_DBG("invalid enabled option\n");
+		ret = 4002;
+		goto FINISH;
+	}
+
+	if(num_of_mssid_support(0) < 2){
+		HTTPD_DBG("mssid is not support\n");
+		ret = 4003;
+		goto FINISH;
+	}
+
+	amazon_wss_enable(wss_enable, do_rc);
+
+FINISH:
+	if(root)
+		json_object_put(root);
+	websWrite(stream, "{\"statusCode\":\"%d\"}", ret);
+}
+#endif
+
+#ifdef RTCONFIG_INTERNETCTRL
+/* check timestamp */
+static int
+isValidtimestamp(char *timestamp)
+{
+	time_t ts;
+	char *ptr=NULL;
+
+	ts = (time_t)strtol(timestamp, &ptr, 10);
+	if((0 < ts && ts < 2145888000L) && (ptr && !strcasecmp(ptr, "Z")))
+		return 1;
+	else
+		return 0;
+}
+
+static void
+do_internet_ctrl_cgi(char *url, FILE *stream) {
+
+	struct json_object *ci_obj=NULL;
+	char icfilter_mac_tmp[512]={0}, *icfilter_mac_next=NULL;
+	char icfilter_daytime_tmp[512]={0}, *icfilter_daytime_next=NULL;
+	char icfilter_mac[512]={0}, icfilter_macfilter_daytime[512]={0};
+	char icfilter_mac_buf[512]={0}, icfilter_daytime_buf[512]={0}, daytime_rule[32]={0}, daytime_rule_tmp[32]={0};
+	int i=0, ret=200, rule_num=0, mac_idx=0, daytime_idx=0;
+	unsigned int schedule_start_tmp=0;
+
+	do_json_decode(&ci_obj);
+
+	char *device_mac = get_cgi_json("device_mac", ci_obj);
+	char *networkAccess = get_cgi_json("networkAccess", ci_obj);
+	char *schedule_start = safe_get_cgi_json("schedule_start", ci_obj);
+	char *schedule_end = safe_get_cgi_json("schedule_end", ci_obj);
+	char *schedule_duration = safe_get_cgi_json("schedule_duration", ci_obj);
+
+	strlcpy(icfilter_mac, nvram_safe_get("ICFILTER_MAC"), sizeof(icfilter_mac));
+	strlcpy(icfilter_macfilter_daytime, nvram_safe_get("ICFILTER_MACFILTER_DAYTIME"), sizeof(icfilter_macfilter_daytime));
+
+	if(!isValidMacAddress(device_mac)){
+		HTTPD_DBG("invalid mac\n");
+		ret = 4002;
+		goto FINISH;
+	}
+
+	if(!isValidEnableOption(networkAccess, 1)){
+		HTTPD_DBG("invalid enabled option\n");
+		ret = 4003;
+		goto FINISH;
+	}
+
+	foreach_62(icfilter_mac_tmp, icfilter_mac, icfilter_mac_next)
+		rule_num++;
+
+	//generate daytime rule
+	if(strlen(schedule_start)){
+		if(isValidtimestamp(schedule_start))
+			snprintf(daytime_rule, sizeof(daytime_rule), "T%s%s", networkAccess, schedule_start);
+		else{
+			ret = 4006;
+			goto FINISH;
+		}
+	}
+
+	if(strlen(schedule_end)){
+		if(isValidtimestamp(schedule_end)){
+			snprintf(daytime_rule_tmp, sizeof(daytime_rule), "<T%d%s", atoi(networkAccess)?0:1, schedule_end);
+			strlcat(daytime_rule, daytime_rule_tmp, sizeof(daytime_rule));
+		}else{
+			ret = 4006;
+			goto FINISH;
+		}
+
+	}else if(strlen(schedule_duration)){
+		for (i=0 ; schedule_duration[i] != '\0'; i++){
+			if (i>10080 && !isdigit(schedule_duration[i])){
+				HTTPD_DBG("invalid schedule_duration\n");
+				ret = 4006;
+				goto FINISH;
+			}
+		}
+		if(atoi(schedule_duration) != 0)
+		{
+			if (sscanf(schedule_start, "%uZ", &schedule_start_tmp) != 1){
+				HTTPD_DBG("invalid schedule_start\n");
+				ret = 4006;
+				goto FINISH;
+			}else{
+				snprintf(daytime_rule_tmp, sizeof(daytime_rule_tmp), "<T%d%uZ", atoi(networkAccess)?0:1, schedule_start_tmp+atoi(schedule_duration)*60);
+				strlcat(daytime_rule, daytime_rule_tmp, sizeof(daytime_rule));
+			}
+		}
+	}
+
+	if (strstr(icfilter_mac, device_mac)==NULL)	//add new device rule
+	{
+		if(rule_num > 16){	//over rule limit to 16
+			HTTPD_DBG("over rule limit\n");
+			ret = 4000;
+			goto FINISH;
+		}else{
+			snprintf(icfilter_mac_buf, sizeof(icfilter_mac_buf), "%s%s%s", icfilter_mac, (rule_num>0)?">":"", device_mac);
+			snprintf(icfilter_daytime_buf, sizeof(icfilter_daytime_buf), "%s%s%s", icfilter_macfilter_daytime, (rule_num>0)?">":"", daytime_rule);
+			nvram_set("ICFILTER_MAC", icfilter_mac_buf);
+			nvram_set("ICFILTER_MACFILTER_DAYTIME", icfilter_daytime_buf);
+		}
+	}else{	//device mac already exist in ICFILTER_MAC
+		foreach_62(icfilter_mac_tmp, icfilter_mac, icfilter_mac_next)
+		{
+			mac_idx++;
+			if(!strcmp(icfilter_mac_tmp, device_mac)){
+				foreach_62(icfilter_daytime_tmp, icfilter_macfilter_daytime, icfilter_daytime_next){
+					daytime_idx++;
+					if(mac_idx == daytime_idx){
+						if(daytime_idx > 1)
+							strlcat(icfilter_daytime_buf, ">", sizeof(icfilter_daytime_buf));
+						strlcat(icfilter_daytime_buf, daytime_rule, sizeof(icfilter_daytime_buf));
+					}
+					else{
+						if(daytime_idx > 1)
+							strlcat(icfilter_daytime_buf, ">", sizeof(icfilter_daytime_buf));
+						strlcat(icfilter_daytime_buf, icfilter_daytime_tmp, sizeof(icfilter_daytime_buf));
+					}
+				}
+				break;
+			}
+		}
+		nvram_set("ICFILTER_MACFILTER_DAYTIME", icfilter_daytime_buf);
+	}
+	notify_rc("restart_firewall");
+FINISH:
+	websWrite(stream, "{\"statusCode\":\"%d\"}", ret);
+	if(ci_obj)
+		json_object_put(ci_obj);
+}
+#endif
+
 //2008.08 magic{
 struct mime_handler mime_handlers[] = {
 	{ "Main_Login.asp", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
@@ -16629,7 +16839,7 @@ struct mime_handler mime_handlers[] = {
 	{ "ure_success.htm", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
 	{ "ureip.asp", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
 	{ "remote.asp", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
-	{ "js/jquery.js", "text/javascript", no_cache_IE7, NULL, do_file, NULL }, // 2010.09 James.
+	{ "js/jquery.js", "text/javascript", no_cache_IE7, NULL, do_file, NULL },
 	{ "require/require.min.js", "text/javascript", no_cache_IE7, NULL, do_file, NULL },
 	{ "httpd_check.xml", "text/xml", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
 	{ "repage.json", "application/json", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
@@ -16719,6 +16929,9 @@ struct mime_handler mime_handlers[] = {
 	{ "upload.cgi*", "text/html", no_cache_IE7, do_upload_post, do_upload_cgi, do_auth },
 	{ "set_ASUS_EULA.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_set_ASUS_EULA_cgi, do_auth },
 	{ "set_TM_EULA.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_set_TM_EULA_cgi, do_auth },
+#if defined(RTCONFIG_BWDPI)
+	{ "wrs_wbl.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_wrs_wbl_cgi, do_auth },
+#endif
 	{ "unreg_ASUSDDNS.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_unreg_ASUSDDNS_cgi, do_auth },
 #ifdef RTCONFIG_HTTPS
 	{ "upload_cert_key.cgi*", "text/html", no_cache_IE7, do_upload_cert_key, do_upload_cert_key_cgi, do_auth },
@@ -16812,6 +17025,12 @@ struct mime_handler mime_handlers[] = {
 	{ "dfb_log.cgi", "application/force-download", NULL, do_html_post_and_get, do_dfb_log_file, do_auth },
 	{ "clean_offline_clientlist.cgi", "text/html", no_cache_IE7, do_html_post_and_get, do_clean_offline_clientlist_cgi, do_auth },
 	{ "set_fw_path.cgi", "text/html", no_cache_IE7, do_html_post_and_get, do_set_fw_path_cgi, do_auth },
+#if defined(RTCONFIG_AMAZON_WSS)
+	{ "amazon_wss.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_amazon_wss_cgi, do_auth },
+#endif
+#ifdef RTCONFIG_INTERNETCTRL
+	{ "internet_ctrl.cgi*", "text/html", no_cache_IE7, do_html_post_and_get, do_internet_ctrl_cgi, do_auth },
+#endif
 	{ NULL, NULL, NULL, NULL, NULL, NULL }
 };
 
@@ -19707,7 +19926,8 @@ int ej_UI_rs_status(int eid, webs_t wp, int argc, char **argv){
 	return 0;
 }
 
-#define WEBDEVINFO_VER 1 //log ej_webdavInfo
+#define WEBDEVINFO_VER 2 //log ej_webdavInfo
+/* lv2: add nvram odmpid, productid, extendno info */
 int ej_webdavInfo(int eid, webs_t wp, int argc, char **argv) {
 
 	char ssid[32];
@@ -19779,6 +19999,9 @@ int ej_webdavInfo(int eid, webs_t wp, int argc, char **argv) {
 	websWrite(wp, "toAPPInfo=['%d'", WEBDEVINFO_VER);
 	websWrite(wp, ",'%u',", ExtendCap);
 	websWrite(wp, "'%s',", get_label_mac());
+	websWrite(wp, "'%s',", nvram_safe_get("odmpid"));
+	websWrite(wp, "'%s',", nvram_safe_get("productid"));
+	websWrite(wp, "'%s',", nvram_safe_get("extendno"));
 	websWrite(wp, "''];\n");
 
 	return 0;
@@ -19786,16 +20009,15 @@ int ej_webdavInfo(int eid, webs_t wp, int argc, char **argv) {
 //#endif
 #endif
 
-// 2010.09 James. {
 int start_autodet(int eid, webs_t wp, int argc, char **argv) {
 	if(strcmp(nvram_safe_get("autodet_proceeding"), "1")){
-		nvram_set("autodet_state", "");
 		notify_rc_after_period_wait("start_autodet", 0);
 	}
 	return 0;
 }
 
 int start_force_autodet(int eid, webs_t wp, int argc, char **argv) {
+	nvram_set("autodet_proceeding", "0");
         notify_rc_after_period_wait("start_autodet", 0);
         return 0;
 }
@@ -21514,7 +21736,7 @@ ej_check_wireless_encryption(int eid, webs_t wp, int argc, char **argv){
 		SKIP_ABSENT_BAND_AND_INC_UNIT(unit);
 		snprintf(prefix, sizeof(prefix), "wl%d_", unit);
 		auth_mode = nvram_safe_get(strcat_r(prefix, "auth_mode_x", tmp));
-		if(!strcmp(auth_mode,"psk2") || !strcmp(auth_mode,"pskpsk2") || !strcmp(auth_mode,"wpa2") || !strcmp(auth_mode,"wpawpa2"))
+		if(!strcmp(auth_mode,"psk2") || !strcmp(auth_mode,"pskpsk2") || !strcmp(auth_mode,"sae") || !strcmp(auth_mode,"psk2sae") || !strcmp(auth_mode,"wpa2") || !strcmp(auth_mode,"wpawpa2"))
 			;
 		else
 			return websWrite(wp, "\"0\"");
@@ -23773,7 +23995,10 @@ ej_get_new_vpnc_index(int eid, webs_t wp, int argc, char **argv)
 	{
 		if(!idx_array[i])
 		{
-			websWrite(wp, "%d", i + VPNC_UNIT_BASIC);
+			if(check_user_agent(user_agent) == FROM_BROWSER)
+				websWrite(wp, "%d", i + VPNC_UNIT_BASIC);
+			else
+				websWrite(wp, "\"%d\"", i + VPNC_UNIT_BASIC);
 			break;
 		}
 	}
@@ -23822,12 +24047,15 @@ ej_get_vpnc_status(int eid, webs_t wp, int argc, char **argv)
 							break;
 					}
 				}				
-			else
+				else
 				{
 					sb_state_t = 0;
 				}				
 				snprintf(tmp, sizeof(tmp), i? "<%d>%d>%d": "%d>%d>%d", state_t, sb_state_t, prof[i].vpnc_idx);
-				websWrite(wp, tmp);
+				if(check_user_agent(user_agent) == FROM_BROWSER)
+					websWrite(wp, "%s", tmp);
+				else
+					websWrite(wp, "\"%s\"", tmp);
 			}
 			else if(prof[i].protocol == VPNC_PROTO_PPTP || prof[i].protocol == VPNC_PROTO_L2TP)
 			{
@@ -23838,7 +24066,10 @@ ej_get_vpnc_status(int eid, webs_t wp, int argc, char **argv)
 				sb_state_t = atoi(nvram_safe_get(attr_name2));
 
 				snprintf(tmp, sizeof(tmp), i? "<%d>%d>%d": "%d>%d>%d", state_t, sb_state_t, prof[i].vpnc_idx);
-				websWrite(wp, tmp);
+				if(check_user_agent(user_agent) == FROM_BROWSER)
+					websWrite(wp, "%s", tmp);
+				else
+					websWrite(wp, "\"%s\"", tmp);
 			}
 		}
 	}
@@ -23868,7 +24099,10 @@ ej_get_vpnc_nondef_wan_prof_list(int eid, webs_t wp, int argc, char **argv)
 		}
 		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), i? "<%d>%d":"%d>%d", prof[i].vpnc_idx, flag);	
 	}
-	websWrite(wp, buf);
+	if(check_user_agent(user_agent) == FROM_BROWSER)
+		websWrite(wp, "%s", buf);
+	else
+		websWrite(wp, "\"%s\"", buf);
 	return 0;
 }
 #endif
@@ -24598,6 +24832,9 @@ struct ej_handler ej_handlers[] = {
 	{ "get_basic_clientlist_count", ej_get_basic_clientlist_count},
 	{ "get_all_basic_clientlist", ej_get_all_basic_clientlist},
 	{ "get_wol_clientlist", ej_get_wol_clientlist},
+#ifdef RTCONFIG_INTERNETCTRL
+	{ "get_clientlist_reportstate", ej_get_clientlist_reportstate},
+#endif
 //2008.08 magic{
 	{ "update_variables", ej_update_variables},
 #ifdef RTCONFIG_ROG
@@ -24799,6 +25036,14 @@ struct ej_handler ej_handlers[] = {
 	{ "wl_rate_5g_2", ej_wl_rate_5g_2},
 #endif
 #endif
+#ifdef CONFIG_BCMWL5
+	{ "wl_cap_2g", ej_wl_cap_2g },
+	{ "wl_cap_5g", ej_wl_cap_5g },
+	{ "wl_cap_5g_2", ej_wl_cap_5g_2 },
+	{ "wl_chipnum_2g", ej_wl_chipnum_2g },
+	{ "wl_chipnum_5g", ej_wl_chipnum_5g },
+	{ "wl_chipnum_5g_2", ej_wl_chipnum_5g_2 },
+#endif
 	{ "nat_accel_status", ej_nat_accel_status },
 	{ "get_wl_channel_list_2g", ej_get_wl_channel_list_2g },
 	{ "get_wl_channel_list_5g", ej_get_wl_channel_list_5g },
@@ -24826,7 +25071,6 @@ struct ej_handler ej_handlers[] = {
 	{ "check_passwd_strength", ej_check_passwd_strength},
 	{ "check_wireless_encryption", ej_check_wireless_encryption},
 	{ "get_clientlist", ej_get_clientlist},
-	{ "get_clientlist_maclist", ej_get_clientlist_maclist},
 #if defined(RTCONFIG_BWDPI)
 	{ "bwdpi_status", ej_bwdpi_status},
 	{ "bwdpi_history", ej_bwdpi_history},

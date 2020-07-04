@@ -2407,8 +2407,9 @@ wlconf(char *name)
 	/* Use chanspec to set the channel */
 	if ((str = nvram_get(strcat_r(prefix, "chanspec", tmp))) != NULL) {
 		chanspec = wf_chspec_aton(str);
+		int ctl_chan = wf_chspec_ctlchan(chanspec);
 
-		if (chanspec) {
+		if (chanspec && ctl_chan) {
 			WL_IOVAR_SETINT(name, "chanspec", (uint32)chanspec);
 		}
 	}

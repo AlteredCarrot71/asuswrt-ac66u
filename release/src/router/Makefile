@@ -718,11 +718,14 @@ obj-$(RTCONFIG_LETSENCRYPT) += socat
 #obj-$(RTCONFIG_SYSSTATE) += sysstate
 obj-y += sysstate
 
+obj-$(RTCONFIG_LIBASC) += libasc
+
 obj-$(RTCONFIG_AHS) += openssl
 obj-$(RTCONFIG_AHS) += $(CURL)
 obj-$(RTCONFIG_AHS) += json-c
 obj-$(RTCONFIG_AHS) += ahs
 
+obj-$(RTCONFIG_ASD) += asd
 obj-$(RTCONFIG_OPENVPN) += openssl
 obj-$(RTCONFIG_OPENVPN) += libvpn
 
@@ -4632,7 +4635,7 @@ sysstate-install:
 	echo "install sysstate"
 	$(MAKE) -C sysstate install
 
-ahs: openssl $(CURL) json-c
+ahs: libasc json-c
 	@$(SEP)
 	echo "build ahs"
 	$(MAKE) -C ahs
@@ -4644,6 +4647,19 @@ ahs-clean:
 ahs-install:
 	echo "install ahs"
 	$(MAKE) -C ahs install
+
+libasc: openssl $(CURL)
+	@$(SEP)
+	echo "build libasc"
+	$(MAKE) -C libasc
+
+libasc-clean:
+	echo "clean libasc"
+	$(MAKE) -C libasc clean
+
+libasc-install:
+	echo "install libasc"
+	$(MAKE) -C libasc install
 
 qsr10g_image:
 aqr107_image:
@@ -6932,6 +6948,18 @@ sysstat-10.0.3-install:
 	$(MAKE) -C sysstat-10.0.3 install_base DESTDIR=$(INSTALLDIR)/sysstat-10.0.3 INSTALL_DOC=n
 	mv $(INSTALLDIR)/sysstat-10.0.3/etc $(INSTALLDIR)/sysstat-10.0.3/etc_sysstat
 	rm -rf $(INSTALLDIR)/sysstat-10.0.3/var
+
+asd: shared nvram$(BCMEX)$(EX7) $(CURL) openssl libasc
+	$(MAKE) -C $@
+
+asd-install:
+	install -D asd/asd $(INSTALLDIR)/asd/usr/bin/asd
+	$(STRIP) $(INSTALLDIR)/asd/usr/bin/asd
+
+asd-clean:
+	$(MAKE) -C asd clean
+
+
 #
 # tunnel related
 #

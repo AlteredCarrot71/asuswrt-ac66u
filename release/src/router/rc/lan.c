@@ -1950,8 +1950,12 @@ gmac3_no_swbr:
 	if (bonding_enabled) {
 		/* Bring up bond0 interface */
 		ifconfig("bond0", IFUP, NULL, NULL);
-		sprintf(tmp, "ifenslave bond0 %s", bonding_ifnames);
-		system(tmp);
+		char slaves[32];
+		memset(slaves, 0, sizeof(slaves));
+		f_read_string("/sys/devices/virtual/net/bond0/bonding/slaves", slaves, sizeof(slaves));
+		foreach(word, bonding_ifnames, next)
+			if (!strstr(slaves, word))
+				doSystem("ifenslave bond0 %s", word);
 		eval("brctl", "addif", nvram_safe_get("lan_ifname"), "bond0");
 		/* remap imp port */
 		sprintf(tmp, "ethswctl -c bondingports -v 0x%x", bonding_portmask);
@@ -2449,14 +2453,14 @@ void hotplug_net(void)
 	char lan_ifname[16];
 	char *interface, *action;
 	bool psta_if, dyn_if, add_event, remove_event;
-	int unit = WAN_UNIT_NONE;
-	char tmp[100], prefix[32];
 #ifdef RTCONFIG_USB_MODEM
 	char device_path[128], usb_path[PATH_MAX], usb_node[32], port_path[8];
 	char nvram_name[32];
 	char word[PATH_MAX], *next;
 	char modem_type[8];
+	int unit = WAN_UNIT_NONE;
 	int modem_unit;
+	char tmp[100], prefix[32];
 	char tmp2[100], prefix2[32];
 	unsigned int vid, pid;
 	char buf[32];
@@ -2617,10 +2621,13 @@ void hotplug_net(void)
 NEITHER_WDS_OR_PSTA:
 	/* PPP interface removed */
 	if (strncmp(interface, "ppp", 3) == 0 && remove_event) {
+		_dprintf("hotplug net: remove net %s.\n", interface);
+		/* do not clear interface too early
 		while ((unit = ppp_ifunit(interface)) >= 0) {
 			snprintf(prefix, sizeof(prefix), "wan%d_", unit);
 			nvram_set(strcat_r(prefix, "pppoe_ifname", tmp), "");
 		}
+		*/
 	}
 #ifdef RTCONFIG_USB_MODEM
 	// Android phone, RNDIS interface, NCM, qmi_wwan.
@@ -4591,8 +4598,12 @@ gmac3_no_swbr:
 	if (bonding_enabled) {
 		/* Bring up bond0 interface */
 		ifconfig("bond0", IFUP, NULL, NULL);
-		sprintf(tmp, "ifenslave bond0 %s", bonding_ifnames);
-		system(tmp);
+		char slaves[32];
+		memset(slaves, 0, sizeof(slaves));
+		f_read_string("/sys/devices/virtual/net/bond0/bonding/slaves", slaves, sizeof(slaves));
+		foreach(word, bonding_ifnames, next)
+			if (!strstr(slaves, word))
+				doSystem("ifenslave bond0 %s", word);
 		eval("brctl", "addif", nvram_safe_get("lan_ifname"), "bond0");
 		/* remap imp port */
 		sprintf(tmp, "ethswctl -c bondingports -v 0x%x", bonding_portmask);
@@ -4745,9 +4756,6 @@ void restart_wl(void)
 	init_wllc();
 #endif
 
-#ifndef RTCONFIG_QCA
-	nvram_set_int("wlready", 1);
-#endif
 	nvram_set("reload_svc_radio", "1");
 #ifndef RTCONFIG_QCA
 	timecheck();
@@ -4865,6 +4873,11 @@ void lanaccess_wl(void)
 	int u, unit;
 #ifdef CONFIG_BCMWL5
 	int subunit;
+#endif
+
+#ifdef RTCONFIG_GN_WBL
+	/* this rule will flush ebtables broute table, so it must be the first function */
+	add_GN_WBL_EBTbrouteRule();
 #endif
 
 	snprintf(lan_subnet, sizeof(lan_subnet), "%s/%s", nvram_safe_get("lan_ipaddr"), nvram_safe_get("lan_netmask"));
@@ -5179,6 +5192,9 @@ void restart_wireless(void)
 #ifndef RTCONFIG_DHDAP
 	restart_wl();
 	lanaccess_wl();
+#endif
+#ifndef RTCONFIG_QCA
+	nvram_set_int("wlready", 1);
 #endif
 
 #ifdef CONFIG_BCMWL5

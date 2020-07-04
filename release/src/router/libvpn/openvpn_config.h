@@ -194,6 +194,7 @@ typedef enum ovpn_errno{
 	OVPN_ERRNO_DH,
 	OVPN_ERRNO_AUTH,
 	OVPN_ERRNO_CONF,
+	OVPN_ERRNO_NET_CONN,
 }ovpn_errno_t;
 
 #define OVPN_ACCNT_MAX	15

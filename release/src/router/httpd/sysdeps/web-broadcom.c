@@ -49,6 +49,7 @@
 #include <wlutils.h>
 #include <linux/types.h>
 #include <wlscan.h>
+#include <bcmdevs.h>
 #ifdef RTCONFIG_BCMWL6
 #include <dirent.h>
 #ifdef __CONFIG_DHDAP__
@@ -2836,6 +2837,110 @@ ej_wl_rate_5g_2(int eid, webs_t wp, int argc, char_t **argv)
 	return ej_wl_rate(eid, wp, argc, argv, 2);
 }
 
+static int ej_wl_cap(int eid, webs_t wp, int argc, char_t **argv, int unit)
+{
+	int retval = 0;
+	char ifname[NVRAM_MAX_PARAM_LEN];
+	char word[256], *next;
+	int unit_max = 0, unit_cur = -1;
+	char caps[WLC_IOCTL_MEDLEN];
+
+	memset(caps, 0, sizeof(caps));
+
+	foreach (word, nvram_safe_get("wl_ifnames"), next)
+		unit_max++;
+
+	if (unit > (unit_max - 1))
+		goto ERROR;
+
+	wl_ifname(unit, 0, ifname);
+
+	wl_ioctl(ifname, WLC_GET_INSTANCE, &unit_cur, sizeof(unit_cur));
+	if (unit != unit_cur)
+		goto ERROR;
+	else if (wl_iovar_get(ifname, "cap", (void *)caps, sizeof(caps))) {
+		dbg("can not get wl cap of %s\n", ifname);
+		goto ERROR;
+	}
+
+ERROR:
+	retval += websWrite(wp, "%s", caps);
+	return retval;
+}
+
+int
+ej_wl_cap_2g(int eid, webs_t wp, int argc, char **argv)
+{
+	return ej_wl_cap(eid, wp, argc, argv, 0);
+}
+
+int
+ej_wl_cap_5g(int eid, webs_t wp, int argc, char **argv)
+{
+	return ej_wl_cap(eid, wp, argc, argv, 1);
+}
+
+int
+ej_wl_cap_5g_2(int eid, webs_t wp, int argc, char **argv)
+{
+	return ej_wl_cap(eid, wp, argc, argv, 2);
+}
+
+static int ej_wl_chipnum(int eid, webs_t wp, int argc, char_t **argv, int unit)
+{
+	int retval = 0;
+	char ifname[NVRAM_MAX_PARAM_LEN];
+	char word[256], *next;
+	int unit_max = 0, unit_cur = -1;
+	wlc_rev_info_t revinfo;
+	unsigned int chipid = 0;
+
+	foreach (word, nvram_safe_get("wl_ifnames"), next)
+		unit_max++;
+
+	if (unit > (unit_max - 1))
+		goto ERROR;
+
+	wl_ifname(unit, 0, ifname);
+	memset(&revinfo, 0, sizeof(revinfo));
+
+	wl_ioctl(ifname, WLC_GET_INSTANCE, &unit_cur, sizeof(unit_cur));
+	if (unit != unit_cur)
+		goto ERROR;
+	else if (wl_ioctl(ifname, WLC_GET_REVINFO, &revinfo, sizeof(revinfo))) {
+		dbg("can not get wl revinfo of %s\n", ifname);
+		goto ERROR;
+	}
+#ifdef HND_ROUTER
+	if (BCM4365_CHIP(revinfo.chipnum))
+		chipid = BCM4366_CHIP_ID;
+	else
+#endif
+		chipid = revinfo.chipnum;
+
+ERROR:
+	retval += websWrite(wp, "%x", chipid);
+	return retval;
+}
+
+int
+ej_wl_chipnum_2g(int eid, webs_t wp, int argc, char **argv)
+{
+	return ej_wl_chipnum(eid, wp, argc, argv, 0);
+}
+
+int
+ej_wl_chipnum_5g(int eid, webs_t wp, int argc, char **argv)
+{
+	return ej_wl_chipnum(eid, wp, argc, argv, 1);
+}
+
+int
+ej_wl_chipnum_5g_2(int eid, webs_t wp, int argc, char **argv)
+{
+	return ej_wl_chipnum(eid, wp, argc, argv, 2);
+}
+
 static int wps_stop_count = 0;
 
 static void reset_wps_status()
@@ -5336,7 +5441,7 @@ wl_scan(int eid, webs_t wp, int argc, char_t **argv, int unit)
 				}
 
 				if (status->move_status == (int8) DFS_SCAN_S_INPROGESS)
-					wl_iovar_setint(name, "dfs_ap_move", -2);
+					wl_iovar_setint(name, "dfs_ap_move", -1);
 			}
 		}
 #endif

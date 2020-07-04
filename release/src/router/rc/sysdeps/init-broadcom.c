@@ -2336,6 +2336,7 @@ void load_wl()
 	int unit;
 	char ifname[16] = {0};
 	char instance_base[128];
+	char instance_base2[128];
 #if defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX) && !defined(RTCONFIG_MFGFW)
 	char word[100], tmp[100], prefix[] = "wlXXXXXXXXXX_";
 	int dhd_chk_cnt = nvram_get_int("dhd_chk_cnt");
@@ -2376,6 +2377,12 @@ void load_wl()
 		unit++;
 	}
 #endif
+#if defined(RTAC88U) || defined(RTAC3100)
+	int chk_reboot = 0;
+
+	if(!*nvram_safe_get("chiprev"))
+		chk_reboot = 1;
+#endif
 
 	memset(modules, 0, sizeof(modules));
 #if defined(RTCONFIG_BCM_7114) && defined(RTCONFIG_MFGFW)
@@ -2405,11 +2412,22 @@ void load_wl()
 					}
 				}
 			}
-			snprintf(instance_base, sizeof(instance_base), "instance_base=%d", maxunit + 1);
+			memset(instance_base, 0, sizeof(instance_base));
+			memset(instance_base2, 0, sizeof(instance_base2));
 #if defined(RTCONFIG_BCM7) || defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
 			if ((strcmp(module, "dhd") == 0) || (strcmp(module, "dhd24") == 0))
-			snprintf(instance_base, sizeof(instance_base), "%s dhd_msg_level=%d", instance_base, nvram_get_int("dhd_msg_level"));
+				snprintf(instance_base, sizeof(instance_base), "instance_base=%d dhd_msg_level=%d", maxunit + 1, nvram_get_int("dhd_msg_level"));
+			else
 #endif
+			{
+				if (strtoul(nvram_safe_get("wl_msglevel"), NULL, 0))
+					snprintf(instance_base, sizeof(instance_base), "msglevel=%d", (int)strtoul(nvram_safe_get("wl_msglevel"), NULL, 0));
+				if (strtoul(nvram_safe_get("wl_msglevel2"), NULL, 0))
+					snprintf(instance_base2, sizeof(instance_base2), "%s msglevel2=%d", instance_base, (int)strtoul(nvram_safe_get("wl_msglevel2"), NULL, 0));
+				else
+					strncpy(instance_base2, instance_base, sizeof(instance_base2));
+				snprintf(instance_base, sizeof(instance_base), "instance_base=%d %s", maxunit + 1, instance_base2);
+			}
 			eval("insmod", module, instance_base);
 		} else {
 			eval("insmod", module);
@@ -2432,6 +2450,19 @@ void load_wl()
 			wl_fail_db(unit, 1, 1);
 
 		unit++;
+	}
+#endif
+#if defined(RTAC88U) || defined(RTAC3100)
+	int n = nvram_get_int("tryc")?:5;
+       
+	if(chk_reboot) {
+		for(i=0; i<n; ++i) {
+			if(nvram_get_hex("chiprev")>0 && chiprev_patch(nvram_safe_get("chiprev"))) {
+				_dprintf("\n>>> reboot due chiprev\n");
+				reboot(RB_AUTOBOOT);
+			}
+			sleep(1);
+		}
 	}
 #endif
 }
@@ -4150,6 +4181,9 @@ void generate_wl_para(char *ifname, int unit, int subunit)
 
 			nvram_set(strcat_r(prefix, "preauth", tmp), nvram_safe_get(strcat_r(prefix2, "preauth", tmp2)));
 			nvram_set(strcat_r(prefix, "bss_maxassoc", tmp), nvram_safe_get(strcat_r(prefix2, "bss_maxassoc", tmp2)));
+
+			/* if amazon_wss is disabled, we need to sync ap_isolate from primary interface */
+			if (!amazon_wss_ap_isolate_support(prefix))
 			nvram_set(strcat_r(prefix, "ap_isolate", tmp), nvram_safe_get(strcat_r(prefix2, "ap_isolate", tmp2)));
 
 			nvram_set(strcat_r(prefix, "net_reauth", tmp), nvram_safe_get(strcat_r(prefix2, "net_reauth", tmp2)));
@@ -7181,7 +7215,7 @@ void add_cfgexcl_2_acsexcl(unsigned int *echx)
 void init_cfg_excl(char *cfg_excl, unsigned int *ech, int unit)
 {
 	char word[256], *next;
-	int i = 0, ui = 0;
+	int i = 0;
 	unsigned int chan;
 
 	foreach_44 (word, cfg_excl, next) {
@@ -7254,6 +7288,7 @@ void set_acs_ifnames()
 	unsigned int cfg_excl_chans[3][MAX_CHANS];	// 2g/5g chans num
 	memset(cfg_excl_chans, 0, sizeof(cfg_excl_chans));
 #endif
+	int war = nvram_match("wl1_bw_160", "1") && nvram_match("acs_dfs", "0");
 
 	wl_check_5g_band_group();
 
@@ -7261,9 +7296,9 @@ void set_acs_ifnames()
 	memset(acs_ifnames, 0, sizeof(acs_ifnames));
 	memset(acs_ifnames2, 0, sizeof(acs_ifnames2));
 
-	wl_list_5g_chans(1, 1, list_5g_band1_chans, sizeof(list_5g_band1_chans));
-	wl_list_5g_chans(1, 2, list_5g_band2_chans, sizeof(list_5g_band2_chans));
-	wl_list_5g_chans((num_of_wl_if() == 3) ? 2 : 1, 3, list_5g_band3_chans, sizeof(list_5g_band3_chans));
+	wl_list_5g_chans(1, 1, 0, list_5g_band1_chans, sizeof(list_5g_band1_chans));
+	wl_list_5g_chans(1, 2, war, list_5g_band2_chans, sizeof(list_5g_band2_chans));
+	wl_list_5g_chans((num_of_wl_if() == 3) ? 2 : 1, 3, 0, list_5g_band3_chans, sizeof(list_5g_band3_chans));
 
 	foreach (word, nvram_safe_get("wl_ifnames"), next) {
 #ifdef RTCONFIG_QTN
@@ -7314,8 +7349,6 @@ void set_acs_ifnames()
 	}
 
 	nvram_set("acs_ifnames", acs_ifnames);
-	nvram_set("acs_band1", "0");
-	nvram_set("acs_band3", "0");
 
 	if ((num_of_wl_if() == 3 && !(nvram_get_hex("wl2_band5grp") & WL_5G_BAND_4))
 #ifdef RTCONFIG_TCODE

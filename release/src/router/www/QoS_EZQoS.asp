@@ -334,6 +334,7 @@ if(wl_info.band5g_2_support != '-1'){
 		}
 	}
 }
+var GN_with_Amazon_WSS_enabled = (amazon_wss_support && ((httpApi.amazon_wss.getStatue(0, 2) == "1") ? true : false));
 
 if(pm_support) {
 	var device_list = [<% pms_device_info(); %>][0];
@@ -361,8 +362,8 @@ if(pm_support) {
 
 function initial(){
 	show_menu();
-	// https://www.asus.com/support/FAQ/1008718/
-	httpApi.faqURL("1008718", function(url){document.getElementById("faq").href=url;});
+	// https://www.asus.com/support/FAQ/1010951/
+	httpApi.faqURL("1010951", function(url){document.getElementById("faq").href=url;});
 
 	if(downsize_4m_support || downsize_8m_support)
 		document.getElementById("guest_image").parentNode.style.display = "none";
@@ -701,6 +702,32 @@ function submitQoS(){
 			if(reset_wan_to_fo.change_status)
 				reset_wan_to_fo.change_wan_mode(document.form);
 
+			if(GN_with_Amazon_WSS_enabled && 
+				((document.form.qos_enable_orig.value == "1" && document.form.qos_enable.value == "0") || //Qos enable to disable
+				(document.form.qos_type_orig.value == "2" && document.form.qos_type.value != "2"))){ // Qos type is change from Bandwidth Limiter to other.
+					document.form.action_script.value = "restart_wireless;" + document.form.action_script.value;
+					if (lantiq_support)
+						document.form.action_wait.value = "60"; // for extend the time to let Amazon WSS ebtable rule ready, or it will block all clients
+					var postData = {
+						"do_rc": "0",
+						"wss_enable": "0"
+					};
+					var parmData = {
+						"wl_unit": "0",
+						"wl_subunit": "2",
+						"async": false
+					};
+					httpApi.amazon_wss.set(postData, parmData);
+					var append_hidden_item = function(_item, _value){
+						var NewInput = document.createElement("input");
+						NewInput.type = "hidden";
+						NewInput.name =  _item;
+						NewInput.value = _value;
+						document.form.appendChild(NewInput);
+					};
+					append_hidden_item("wl0.2_bss_enabled", "0");
+			}
+
 			determineActionScript();
 			showLoading();
 			document.form.submit();
@@ -773,8 +800,17 @@ function change_qos_type(value){
 
 	document.form.qos_type.value = value;
 
-	if(value != 2 && GN_with_BandwidthLimeter){
-		alert("Guest Network > Bandwidth Limiter will be Disabled.");		/* Untranslated */
+	if(value != 2){
+		var alert_hint = "";
+		if(GN_with_BandwidthLimeter)
+			alert_hint += "The Bandwidth Limiter of Guest Network will be disabled."/* Untranslated */
+		if(GN_with_Amazon_WSS_enabled){
+			if(alert_hint != "")
+				alert_hint += "\n";
+			alert_hint += "Amazon Wi-Fi Simple Setup will be disabled. "/* Untranslated */
+		}
+		if(alert_hint != "")
+			alert(alert_hint);
 	}
 }
 
@@ -1549,9 +1585,16 @@ function setGroup(name){
 																document.getElementById('bandwidth_setting_tr').style.display = "none";
 																document.getElementById('list_table').style.display = "none";
 
-																if(GN_with_BandwidthLimeter){
-																	alert("Guest Network > Bandwidth Limiter will be Disabled.");		/* Untranslated */
+																var alert_hint = "";
+																if(GN_with_BandwidthLimeter)
+																	alert_hint += "The Bandwidth Limiter of Guest Network will be disabled."/* Untranslated */
+																if(GN_with_Amazon_WSS_enabled){
+																	if(alert_hint != "")
+																	alert_hint += "\n";
+																	alert_hint += "Amazon Wi-Fi Simple Setup will be disabled. "/* Untranslated */
 																}
+																if(alert_hint != "")
+																	alert(alert_hint);
 
 																if(adaptiveqos_support){
 

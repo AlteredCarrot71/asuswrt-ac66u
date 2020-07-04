@@ -1127,7 +1127,8 @@ typedef struct ti_ie ti_ie_t;
 #define DOT11_SC_ASSOC_MFP_VIOLATION	31	/* Association denied due to Robust Management
 						 * frame policy violation
 						 */
-
+#define DOT11_SC_INSUFFICIENT_BANDWIDTH 33	/* Insufficient Bandwidth */
+#define DOT11_SC_POOR_CHAN_CONDITION    34	/* Bad channel condition */
 #define	DOT11_SC_DECLINED		37	/* request declined */
 #define	DOT11_SC_INVALID_PARAMS		38	/* One or more params have invalid values */
 #define DOT11_SC_INVALID_PAIRWISE_CIPHER	42 /* invalid pairwise cipher */
@@ -1148,6 +1149,8 @@ typedef struct ti_ie ti_ie_t;
 #define DOT11_SC_UNEXP_MSG			70	/* Unexpected message */
 #define DOT11_SC_INVALID_SNONCE		71	/* Invalid SNonce */
 #define DOT11_SC_INVALID_RSNIE		72	/* Invalid contents of RSNIE */
+#define DOT11_SC_ANTICLOG_TOCKEN_REQUIRED	76	/* Anti-clogging tocken required */
+#define DOT11_SC_INVALID_FINITE_CYCLIC_GRP	77	/* Invalid contents of RSNIE */
 #define DOT11_SC_ASSOC_VHT_REQUIRED	104	/* Association denied because the requesting
 						 * station does not support VHT features.
 						 */

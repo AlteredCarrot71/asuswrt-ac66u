@@ -1,23 +1,20 @@
 ﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<html xmlns:v>
+<html>
 <head>
-<meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta HTTP-EQUIV="Pragma" CONTENT="no-cache">
-<meta HTTP-EQUIV="Expires" CONTENT="-1">
-<link rel="shortcut icon" href="images/favicon.png">
-<link rel="icon" href="images/favicon.png">
-<title><#Web_Title#> - <#menu5_1_6#></title>
-<link rel="stylesheet" type="text/css" href="index_style.css"> 
-<link rel="stylesheet" type="text/css" href="form_style.css">
-<script type="text/javascript" src="/state.js"></script>
-<script type="text/javascript" src="/general.js"></script>
-<script type="text/javascript" src="/help.js"></script>
-<script type="text/javascript" src="/popup.js"></script>
-<script type="text/javascript" src="/validator.js"></script>
-<script type="text/javascript" src="/js/jquery.js"></script>
-<script type="text/javascript" src="/calendar/jquery-ui.js"></script> 
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scale=0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="shortcut icon" href="images/favicon.png">
+	<title><#Web_Title#> - <#menu5_1_6#></title>
+	<link rel="stylesheet" href="index_style.css"> 
+	<link rel="stylesheet" href="form_style.css">
+	<script src="/state.js"></script>
+	<script src="/general.js"></script>
+	<script src="/help.js"></script>
+	<script src="/popup.js"></script>
+	<script src="/validator.js"></script>
+	<script src="/js/jquery.js"></script>
+	<script src="/calendar/jquery-ui.js"></script> 
 <style>
 .ui-slider {
 	position: relative;
@@ -222,6 +219,52 @@ if(location_list_support && amesh_support && ameshRouter_support) {
 		cfg_ui_region_disable = 0;
 }
 
+var QAM256_support = false;
+var QAM1024_support = false;
+(function(){
+	if(Bcmwifi_support){
+		var _cap = '';
+		var _chipset = '';
+		if(wl_unit_value == '0'){
+			_cap = '<% wl_cap_2g(); %>';
+			_chipset = '<% wl_chipnum_2g(); %>';
+		}
+		else if(wl_unit_value == '1'){
+			_cap = '<% wl_cap_5g(); %>';
+			_chipset = '<% wl_chipnum_5g(); %>';
+		}
+		else if(wl_unit_value == '2'){
+			_cap = '<% wl_cap_5g_2(); %>';
+			_chipset = '<% wl_chipnum_5g_2(); %>';
+		}
+
+		QAM1024_support = (function(){
+			if(isNaN(_chipset)){	// check the value is hexdecimal and then convert it to decimal
+				_chipset = parseInt(_chipset, 16);
+			}
+
+			if(_cap.indexOf('11ax') != -1 || _chipset == '4366' || _chipset == '4365' || _chipset == '43664' || _chipset == '43666'){
+				return true
+			}
+
+			return false;
+		})();
+
+		QAM256_support = (_cap.indexOf('vht-prop-rates') != -1) ? true : false;
+	}
+	else{
+		if(based_modelid == "GT-AXY16000"
+		|| based_modelid == "RT-AX89U"
+		|| based_modelid == "RT-AC95U" || based_modelid == "RT-AC88N" || based_modelid == "RT-AC88Q" || based_modelid == "RT-AC82U" || based_modelid == "RT-AC58U"
+		|| based_modelid == "MAP-AC1300" || based_modelid == "MAP-AC2200" || based_modelid == "VZW-AC1300" || based_modelid == "MAP-AC1750" || based_modelid == "MAP-AC3000" 
+		|| based_modelid == "RT-AD7200"
+		|| based_modelid == "BRT-AC828"){
+			QAM256_support = true;
+		}
+	}
+
+})();
+
 function initial(){
 	show_menu();
 	register_event();
@@ -328,8 +371,7 @@ function initial(){
 		if( based_modelid == "RT-AC55U" || based_modelid == "RT-AC55UHP")
 			inputCtrl(document.form.traffic_5g, 1);
 
-		if(	based_modelid == "RT-AC88U" || based_modelid == "RT-AX88U" || based_modelid == "RT-AC86U" || based_modelid == "GT-AC2900" || based_modelid == "RT-AC3100" ||
-			based_modelid == "RT-AC5300" || based_modelid == "GT-AC5300" || based_modelid == "GT-AX11000" || based_modelid == "RT-AX92U"){
+		if(QAM1024_support || (Bcmwifi_support && QAM256_support)){
 			if(document.form.wl_nmode_x.value == "0" || document.form.wl_nmode_x.value == "8"){		// wireless mode: Auto , N/AC mixed
 				inputCtrl(document.form.wl_turbo_qam, 1);
 			}
@@ -342,8 +384,15 @@ function initial(){
 			}
 			
 			$("#turbo_qam_title").html("<#WLANConfig11b_x_ModulationScheme#>");
-			var desc =  ["Up to MCS 9 (802.11ac)", "Up to MCS 11 (NitroQAM/1024-QAM)"];
-			var value = ["1", "2"];
+			if(QAM1024_support){
+				var desc = ["Up to MCS 9 (802.11ac)", "Up to MCS 11 (NitroQAM/1024-QAM)"];
+				var value = ["1", "2"];
+			}
+			else if(QAM256_support){
+				var desc = ["Up to MCS 9 (802.11ac)"];
+				var value = ["1"];
+			}
+
 			add_options_x2(document.form.wl_turbo_qam, desc, value, '<% nvram_get("wl_turbo_qam"); %>');
 			$('#turbo_qam_hint').click(function(){openHint(3,33);});
 		}
@@ -374,13 +423,10 @@ function initial(){
 		document.getElementById("wl_txPower_field").style.display = "none";
 	}
 	else{ // 2.4GHz
-		if(	based_modelid == "RT-AC3200" ||
-			based_modelid == "RT-N18U" ||
-			based_modelid == "RT-AC87U" ||
-			based_modelid == "RT-AC68U" || based_modelid == "RT-AC68A" || based_modelid == "DSL-AC68U" || based_modelid == "4G-AC68U" ||
-			based_modelid == "RT-AC88U" || based_modelid == "RT-AX88U" || based_modelid == "RT-AC86U" || based_modelid == "GT-AC2900" || based_modelid == "RT-AC3100" ||
-			based_modelid == "RT-AC5300" || based_modelid == "GT-AC5300" || based_modelid == "GT-AX11000" || based_modelid == "RT-AX92U")
-		{
+		if(Qcawifi_support && QAM256_support){
+			inputCtrl(document.form.wl_turbo_qam, 1);
+		}
+		else if(QAM1024_support || (Bcmwifi_support && QAM256_support)){
 			if(based_modelid == "RT-N18U" && bootLoader_ver < 2000)
 				inputCtrl(document.form.wl_turbo_qam, 0);
 			else{
@@ -391,14 +437,19 @@ function initial(){
 					inputCtrl(document.form.wl_turbo_qam, 0);
 				}
 				
-				if(	based_modelid == "RT-AC88U" || based_modelid == "RT-AX88U" || based_modelid == "RT-AC86U" || based_modelid == "GT-AC2900" || based_modelid == "RT-AC3100" ||
-					based_modelid == "RT-AC5300" || based_modelid == "GT-AC5300" || based_modelid == "GT-AX11000" || based_modelid == "RT-AX92U"){
-					$("#turbo_qam_title").html("<#WLANConfig11b_x_ModulationScheme#>");
+				
+				$("#turbo_qam_title").html("<#WLANConfig11b_x_ModulationScheme#>");
+				if(QAM1024_support){
 					var desc = ["Up to MCS 7 (802.11n)", "Up to MCS 9 (TurboQAM/256-QAM)", "Up to MCS 11 (NitroQAM/1024-QAM)"];
 					var value = ["0", "1", "2"];
-					add_options_x2(document.form.wl_turbo_qam, desc, value, '<% nvram_get("wl_turbo_qam"); %>');
-					$('#turbo_qam_hint').click(function(){openHint(3,33);});
-				}				
+				}
+				else if(QAM256_support){
+					var desc = ["Up to MCS 7 (802.11n)", "Up to MCS 9 (TurboQAM/256-QAM)"];
+					var value = ["0", "1"];
+				}
+				
+				add_options_x2(document.form.wl_turbo_qam, desc, value, '<% nvram_get("wl_turbo_qam"); %>');
+				$('#turbo_qam_hint').click(function(){openHint(3,33);});				
 			}
 				
 			if(no_vht_support){	//Hide 11AC/80MHz from GUI
@@ -420,7 +471,6 @@ function initial(){
 		{
 			$('wl_txbf_desc').innerHTML = "<#WLANConfig11b_x_ExpBeam#>";
 			inputCtrl(document.form.wl_txbf, 1);
-			inputCtrl(document.form.wl_turbo_qam, 1);
 		}
 		if(Qcawifi_support && (based_modelid == "GT-AXY16000" || based_modelid == "RT-AX89U") && document.form.wl_nmode_x.value == "0" && document.form.wl0_he_features.value == "3"){
 			inputCtrl(document.form.wl_txbf, 1);

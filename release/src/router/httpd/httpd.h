@@ -133,12 +133,10 @@ struct iptv_profile {
         char *ttl_inc_enable;
 };
 
-#ifdef RTCONFIG_ODMPID
-struct REPLACE_ODMPID_S {
+struct REPLACE_PRODUCTID_S {
         char *org_name;
         char *replace_name;
 };
-#endif
 
 #define MIME_EXCEPTION_NOAUTH_ALL 	1<<0
 #define MIME_EXCEPTION_NOAUTH_FIRST	1<<1
@@ -188,6 +186,26 @@ struct REPLACE_ODMPID_S {
 #else
 #define NMP_CL_JSON_FILE                "/tmp/nmp_cl_json.js"
 #endif
+
+enum {
+	HTTP_OK = 200,
+	HTTP_FAIL = 400,
+	HTTP_RULE_ADD_SUCCESS = 2001,
+	HTTP_RULE_DEL_SUCCESS,
+	HTTP_NORULE_DEL,
+	HTTP_OVER_MAX_RULE_LIMIT = 4000,
+	HTTP_INVALID_ACTION,
+	HTTP_INVALID_MAC,
+	HTTP_INVALID_ENABLE_OPT,
+	HTTP_INVALID_NAME,
+	HTTP_INVALID_EMAIL,
+	HTTP_INVALID_INPUT,
+	HTTP_INVALID_IPADDR,
+	HTTP_INVALID_TS,
+	HTTP_INVALID_FILE,
+	HTTP_SHMGET_FAIL = 5000,
+	HTTP_FB_SVR_FAIL
+};
 
 /* Exception MIME handler */
 struct except_mime_handler {
@@ -393,6 +411,7 @@ extern char* reverse_str( char *str );
 #ifdef RTCONFIG_AMAS
 extern int check_AiMesh_whitelist(char *page);
 #endif
+extern int check_cmd_injection_blacklist(char *para);
 
 /* web-*.c */
 extern int ej_wl_status(int eid, webs_t wp, int argc, char_t **argv, int unit);
@@ -470,4 +489,7 @@ extern void do_feedback_mail_cgi(char *url, FILE *stream);
 extern void do_dfb_log_file(char *url, FILE *stream);
 extern int is_amas_support(void);
 extern void do_set_fw_path_cgi(char *url, FILE *stream);
+#if defined(RTCONFIG_AMAZON_WSS)
+extern void amazon_wss_enable(char *wss_enable, char *do_rc);
+#endif
 #endif /* _httpd_h_ */

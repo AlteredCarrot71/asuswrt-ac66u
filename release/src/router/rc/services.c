@@ -1165,6 +1165,9 @@ void start_dnsmasq(void)
 			    lan_hostname, nvram_safe_get("lan_domain"),
 			    lan_hostname);
 
+		/* mdns fallback */
+		fprintf(fp, "%s %s.local\n", lan_ipaddr, lan_hostname);
+
 		/* default names */
 		fprintf(fp, "%s %s\n", lan_ipaddr, DUT_DOMAIN_NAME);
 		fprintf(fp, "%s %s\n", lan_ipaddr, OLD_DUT_DOMAIN_NAME1);
@@ -1199,6 +1202,9 @@ void start_dnsmasq(void)
 				fprintf(fp, "%s %s.%s %s\n", value,
 					    lan_hostname, nvram_safe_get("lan_domain"),
 					    lan_hostname);
+
+				/* mdns fallback */
+				fprintf(fp, "%s %s.local\n", value, lan_hostname);
 			}
 		}
 #endif
@@ -4040,8 +4046,34 @@ mcpd_conf(void)
 	else
 		fprintf(fp, "igmp-mcast-interfaces %s\n", proxy_ifname);
 
+#ifdef RTCONFIG_IPV6
+	fprintf(fp, "#\n");
+	fprintf(fp, "#Begin MLD configuration\n");
+	fprintf(fp, "#\n");
+
+	fprintf(fp, "mld-default-version %d\n", 2);
+	fprintf(fp, "mld-query-interval %d\n", 125);
+	fprintf(fp, "mld-query-response-interval %d\n", 10);
+	fprintf(fp, "mld-last-member-query-interval %d\n", 10);
+	fprintf(fp, "mld-robustness-value %d\n", 2);
+	fprintf(fp, "mld-max-groups %d\n", 10);
+	fprintf(fp, "mld-max-sources %d\n", 10);
+	fprintf(fp, "mld-max-members %d\n", 10);
+	fprintf(fp, "mld-fast-leave %d\n", 1);
+	fprintf(fp, "mld-admission-required %d\n", 0);
+	fprintf(fp, "mld-admission-bridging-filter %d\n", 0);
+	fprintf(fp, "mld-proxy-enable %d\n", 1);
+	fprintf(fp, "mld-snooping-enable %d\n", 1);
+	fprintf(fp, "mld-proxy-interfaces %s\n", proxy_ifname);
+	fprintf(fp, "mld-snooping-interfaces %s\n", "br0");
+	fprintf(fp, "mld-mcast-interfaces %s\n", proxy_ifname);
+	fprintf(fp, "#\n");
+	fprintf(fp, "#End MLD configuration\n");
+	fprintf(fp, "#\n");
+#endif
+
 	/* Mcast configuration */
-	fprintf(fp, "\n##### MCAST configuration #####\n");
+	fprintf(fp, "##### MCAST configuration #####\n");
 	fprintf(fp, "igmp-mcast-snoop-exceptions "
 		"239.255.255.250/255.255.255.255 "
 		"224.0.255.135/255.255.255.255\n");
@@ -4248,7 +4280,7 @@ void stop_ahs(void)
 {
 	if (pids("ahs"))
 	{
-		kill_pidfile_s(AHS_PIDFILE, SIGTERM);
+		killall_tk("ahs");
 	}
 }
 
@@ -4259,6 +4291,21 @@ void start_ahs(void)
 }
 #endif /* RTCONFIG_AHS */
 
+#ifdef RTCONFIG_ASD
+void stop_asd(void)
+{
+	if (pids("asd"))
+	{
+		killall("asd", SIGTERM);
+	}
+}
+
+void start_asd(void)
+{
+	stop_asd();
+	xstart("asd");
+}
+#endif /* RTCONFIG_ASD */
 void
 stop_misc(void)
 {
@@ -5147,6 +5194,9 @@ void stop_lltd(void)
 #define AVAHI_AFPD_SERVICE_FN	"afpd.service"
 #define AVAHI_ADISK_SERVICE_FN	"adisk.service"
 #define AVAHI_ITUNE_SERVICE_FN  "mt-daap.service"
+#if defined(RTCONFIG_ALEXA)
+#define AVAHI_ALEXA_SERVICE_FN  "alexa.service"
+#endif
 #define TIMEMACHINE_BACKUP_NAME	"Backups.backupdb"
 
 int generate_mdns_config(void)
@@ -5301,11 +5351,45 @@ int generate_itune_service_config(void)
 	return ret;
 }
 
+#if defined(RTCONFIG_ALEXA)
+int generate_alexa_config(void)
+{
+	FILE *fp;
+	char alexa_service_config[80];
+	int ret = 0;
+
+	sprintf(alexa_service_config, "%s/%s", AVAHI_SERVICES_PATH, AVAHI_ALEXA_SERVICE_FN);
+
+	/* Generate afpd service configuration file */
+	if (!(fp = fopen(alexa_service_config, "w"))) {
+		perror(alexa_service_config);
+		return -1;
+	}
+
+	fprintf(fp, "<service-group>\n");
+	fprintf(fp, "<name replace-wildcards=\"yes\">%%h</name>\n");
+	fprintf(fp, "<service>\n");
+	fprintf(fp, "<type>_alexa._tcp</type>\n");
+	fprintf(fp, "<port>80</port>\n");
+	fprintf(fp, "<txt-record>skillSetupId=8b18386c-1353-4612-9626-714937decf3e</txt-record>\n");
+	fprintf(fp, "<txt-record>version=1</txt-record>\n");
+	fprintf(fp, "</service>\n");
+	fprintf(fp, "</service-group>\n");
+
+	fclose(fp);
+
+	return ret;
+}
+#endif
+
 int start_mdns(void)
 {
 	char afpd_service_config[80];
 	char adisk_service_config[80];
 	char itune_service_config[80];
+#if defined(RTCONFIG_ALEXA)
+	char alexa_service_config[80];
+#endif
 	char *avahi_daemon_argv[] = { "avahi-daemon",
 		"-D",
 		nvram_get_int("ava_verb") ? "--debug" : NULL,
@@ -5321,11 +5405,16 @@ int start_mdns(void)
 	sprintf(afpd_service_config, "%s/%s", AVAHI_SERVICES_PATH, AVAHI_AFPD_SERVICE_FN);
 	sprintf(adisk_service_config, "%s/%s", AVAHI_SERVICES_PATH, AVAHI_ADISK_SERVICE_FN);
 	sprintf(itune_service_config, "%s/%s", AVAHI_SERVICES_PATH, AVAHI_ITUNE_SERVICE_FN);
-
+#if defined(RTCONFIG_ALEXA)
+	sprintf(alexa_service_config, "%s/%s", AVAHI_SERVICES_PATH, AVAHI_ALEXA_SERVICE_FN);
+#endif
 	mkdir_if_none(AVAHI_CONFIG_PATH);
 	mkdir_if_none(AVAHI_SERVICES_PATH);
 
 	generate_mdns_config();
+#if defined(RTCONFIG_ALEXA)
+	generate_alexa_config();
+#endif
 
 	if (pids("afpd") && nvram_match("timemachine_enable", "1"))
 	{
@@ -8194,6 +8283,9 @@ start_services(void)
 #ifdef RTCONFIG_AHS
 	start_ahs();
 #endif /* RTCONFIG_AHS */
+#ifdef RTCONFIG_ASD
+	start_asd();
+#endif
 #ifdef RTCONFIG_TRAFFIC_LIMITER
 	init_traffic_limiter();
 #endif
@@ -12649,6 +12741,10 @@ check_ddr_done:
 		// only stop service need to save database
 		if(action & RC_SERVICE_STOP) hm_traffic_analyzer_save();
 	}
+	else if (strcmp(script, "wrs_wbl") == 0)
+	{
+		start_wrs_wbl_service();
+	}
 #endif
 #ifdef RTCONFIG_TRAFFIC_LIMITER
 	else if (strcmp(script, "reset_traffic_limiter") == 0)
@@ -14291,11 +14387,12 @@ start_autodet(void)
 		return;
 	}
 
-	killall_tk("autodet");
+	// default, autodet will only be called by wanduck
+	if(!nvram_get_int("x_Setting"))
+		return;
 
-	_eval(autodet_argv, NULL, 0, &pid);
-
-	return;
+	if(!pids("autodet"))
+		_eval(autodet_argv, NULL, 0, &pid);
 }
 
 void
@@ -14307,6 +14404,7 @@ stop_autodet(void)
 	}
 
 	killall_tk("autodet");
+	nvram_set("autodet_proceeding", "0");
 }
 
 // string = S20transmission -> return value = transmission.
