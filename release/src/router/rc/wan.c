@@ -2025,7 +2025,7 @@ int update_resolvconf(void)
 				if (dnspriv_enable)
 					break;
 #endif
-#if 0 //def RTCONFIG_OPENVPN
+#if defined(RTCONFIG_OPENVPN) && !defined(RTCONFIG_VPN_FUSION)
 				if (write_ovpn_resolv_dnsmasq(fp_servers))
 					break;
 #endif

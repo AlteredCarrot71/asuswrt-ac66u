@@ -1816,7 +1816,7 @@ extern int firmware_check_main(int argc, char *argv[]);
 #ifdef RTCONFIG_HTTPS
 extern int rsasign_check_main(int argc, char *argv[]);
 extern int rsarootca_check_main(int argc, char *argv[]);
-extern char *pwdec(const char *input, char *output);
+extern char *pwdec(const char *input, char *output, int output_len);
 extern char *pwdec_dsl(char *input);
 #endif
 #ifdef RTCONFIG_ISP_CUSTOMIZE
@@ -2460,6 +2460,10 @@ extern int asus_ctrl_ignore();
 extern int asus_ctrl_write(char *asusctrl);
 #else
 static inline int asus_ctrl_write(char *asusctrl) { return 0; }
+#endif
+extern void asus_ctrl_sku_check();
+#ifdef GTAC5300
+extern void asus_ctrl_sku_update();
 #endif
 #endif
 

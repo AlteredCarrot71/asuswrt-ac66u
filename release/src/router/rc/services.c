@@ -734,7 +734,7 @@ void create_passwd(void)
 #ifdef RTCONFIG_NVRAM_ENCRYPT
 	else{
 		memset(dec_passwd, 0, sizeof(dec_passwd));
-		pw_dec(p, dec_passwd);
+		pw_dec(p, dec_passwd, sizeof(dec_passwd));
 		p = dec_passwd;
 	}
 #endif
@@ -6667,12 +6667,12 @@ void chilli_config(void)
 
 	fprintf(fp, "dns1 %s\n", nvram_safe_get("lan_ipaddr"));
 
-	char *chilli_uamsecret =  nvram_get("chilli_uamsecret");
+	char *chilli_uamsecret =  nvram_safe_get("chilli_uamsecret");
 #ifdef RTCONFIG_NVRAM_ENCRYPT
-	int declen = pw_dec_len(chilli_uamsecret);
+	int declen = strlen(chilli_uamsecret);
 	char dec_passwd[declen];
 	memset(dec_passwd, 0, sizeof(dec_passwd));
-	pw_dec(chilli_uamsecret, dec_passwd);
+	pw_dec(chilli_uamsecret, dec_passwd, sizeof(dec_passwd));
 	chilli_uamsecret = dec_passwd;
 #endif
 	if (nvram_invmatch("chilli_uamsecret", ""))
@@ -6693,10 +6693,10 @@ void chilli_config(void)
 		fprintf(fp, "macauth\n");
 		char *chilli_macpasswd = nvram_safe_get("chilli_macpasswd");
 #ifdef RTCONFIG_NVRAM_ENCRYPT
-		int declen2 = pw_dec_len(chilli_macpasswd);
+		int declen2 = strlen(chilli_macpasswd);
 		char dec_passwd2[declen2];
 		memset(dec_passwd2, 0, sizeof(dec_passwd2));
-		pw_dec(chilli_macpasswd, dec_passwd2);
+		pw_dec(chilli_macpasswd, dec_passwd2, sizeof(dec_passwd2));
 		chilli_macpasswd = dec_passwd2;
 #endif
 		if (strlen(chilli_macpasswd) > 0)
@@ -6846,12 +6846,12 @@ void chilli_config_CP(void)
 
 	fprintf(fp, "dns1 %s\n", nvram_safe_get("lan_ipaddr"));
 
-	char *enc_value =  nvram_get("cp_uamsecret");
+	char *enc_value =  nvram_safe_get("cp_uamsecret");
 #ifdef RTCONFIG_NVRAM_ENCRYPT
-	int declen = pw_dec_len(enc_value);
+	int declen = strlen(enc_value);
 	char dec_passwd[declen];
 	memset(dec_passwd, 0, sizeof(dec_passwd));
-	pw_dec(enc_value, dec_passwd);
+	pw_dec(enc_value, dec_passwd, sizeof(dec_passwd));
 	enc_value = dec_passwd;
 #endif
 	if (nvram_invmatch("cp_uamsecret", ""))
@@ -8177,6 +8177,9 @@ start_aura_rgb_sw(void)
 int
 start_services(void)
 {
+#ifdef RTCONFIG_ASD
+	start_asd();
+#endif
 #ifdef RTCONFIG_LANTIQ
 	start_wave_monitor();
 #endif
@@ -8283,9 +8286,6 @@ start_services(void)
 #ifdef RTCONFIG_AHS
 	start_ahs();
 #endif /* RTCONFIG_AHS */
-#ifdef RTCONFIG_ASD
-	start_asd();
-#endif
 #ifdef RTCONFIG_TRAFFIC_LIMITER
 	init_traffic_limiter();
 #endif
@@ -9511,22 +9511,22 @@ int start_quagga(void)
 	zebra_hostname = nvram_safe_get("productid");
 	rip_hostname = nvram_safe_get("productid");
 #ifdef RTCONFIG_NVRAM_ENCRYPT
-	int declen = pw_dec_len(zebra_passwd);
+	int declen = strlen(zebra_passwd);
 	char dec_passwd[declen];
 	memset(dec_passwd, 0, sizeof(dec_passwd));
-	pw_dec(zebra_passwd, dec_passwd);
+	pw_dec(zebra_passwd, dec_passwd, sizeof(dec_passwd));
 	zebra_passwd = dec_passwd;
 
-	int declen2 = pw_dec_len(zebra_enpasswd);
+	int declen2 = strlen(zebra_enpasswd);
 	char dec_passwd2[declen2];
 	memset(dec_passwd2, 0, sizeof(dec_passwd2));
-	pw_dec(zebra_enpasswd, dec_passwd2);
+	pw_dec(zebra_enpasswd, dec_passwd2, sizeof(dec_passwd2));
 	zebra_enpasswd = dec_passwd2;
 
-	int declen3 = pw_dec_len(rip_passwd);
+	int declen3 = strlen(rip_passwd);
 	char dec_passwd3[declen3];
 	memset(dec_passwd3, 0, sizeof(dec_passwd3));
-	pw_dec(rip_passwd, dec_passwd3);
+	pw_dec(rip_passwd, dec_passwd3, sizeof(dec_passwd3));
 	rip_passwd = dec_passwd3;
 #endif
 	if (pids("zebra")){

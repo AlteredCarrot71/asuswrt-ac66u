@@ -843,6 +843,7 @@ enum {
 	MODEL_GTAX11000,
 	MODEL_RTAX92U,
 	MODEL_RTAX95Q,
+	MODEL_RTAX56_XD4,
 	MODEL_RTAX58U,
 	MODEL_RTAX56U,
 	MODEL_SHAC1300,
@@ -851,6 +852,8 @@ enum {
 	MODEL_ZENWIFICD6N,
 	MODEL_RTAX86U,
 	MODEL_RTAX68U,
+	MODEL_RT4GAC56,
+	MODEL_DSLAX82U,
 	MODEL_MAX
 };
 
@@ -2039,6 +2042,7 @@ extern int remove_word(char *buffer, const char *word);
 extern void trim_space(char *str);
 extern void toLowerCase(char *str);
 extern void toUpperCase(char *str);
+extern void trim_colon(char *str);
 
 /* ethtool.c */
 extern int iface_exist(const char *iface);
@@ -2711,6 +2715,7 @@ extern int FindBrifByWlif(char *wl_ifname, char *brif_name, int size);
 #ifdef RTAC68U
 extern int is_ac66u_v2_series();
 extern int is_n66u_v2();
+extern int is_ac68u_v3_series();
 extern int hw_usb_cap();
 extern int is_ssid_rev3_series();
 #ifdef RTCONFIG_TCODE
@@ -2734,7 +2739,7 @@ extern void erase_symbol(char *old, char *sym);
 /* pwenc.c */
 #if defined(RTCONFIG_NVRAM_ENCRYPT) || defined(RTCONFIG_ASD) || defined(RTCONFIG_AHS)
 extern int pw_enc(const char *input, char *output);
-extern int pw_dec(const char *input, char *output);
+extern int pw_dec(const char *input, char *output, int len);
 extern int pw_enc_blen(const char *input);
 extern int pw_dec_len(const char *input);
 #endif

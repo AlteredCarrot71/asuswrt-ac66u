@@ -815,6 +815,7 @@ ifeq ($(RTCONFIG_AMAS),y)
 obj-y  += jansson-2.7
 obj-y  += libevent-2.0.21
 obj-y  += lldpd-0.9.8
+obj-y  += libxml2
 endif
 
 .PHONY: emf$(BCMEX)$(EX7) igs$(BCMEX)$(EX7) hspot_ap$(BCMEX)$(EX7) wps$(BCMEX)$(EX7)
@@ -6361,6 +6362,8 @@ wget-clean:
 wget-install:
 	install -D wget/src/wget $(INSTALLDIR)/wget/usr/sbin/wget
 	$(STRIP) $(INSTALLDIR)/wget/usr/sbin/wget
+	install -d $(INSTALLDIR)/wget/rom/etc
+	echo "ca_certificate=/etc/ssl/certs/ca-certificates.crt" > $(INSTALLDIR)/wget/rom/etc/wgetrc
 
 rtk_wifi_eventd: $(if $(RTCONFIG_CFGSYNC), cfg_mnt)
 

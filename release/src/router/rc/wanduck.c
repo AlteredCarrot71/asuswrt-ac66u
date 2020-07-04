@@ -287,7 +287,7 @@ void enable_wan_led()
 		switch (get_model()) {
 #ifdef RTAC68U
 			case MODEL_RTAC68U:
-				if (!is_ac66u_v2_series())
+				if (!is_ac66u_v2_series() && !is_ac68u_v3_series())
 					break;
 #endif
 			case MODEL_RTAC3200:
@@ -360,13 +360,14 @@ static void wan_led_control(int sig) {
 #elif defined(RTAC68U) ||  defined(RTAC87U) || defined(RTAC3200) || defined(RTCONFIG_BCM_7114) || defined(DSL_AC68U) || defined(HND_ROUTER)
 	if(nvram_match("AllLED", "1")
 #ifdef RTAC68U
-		&& is_ac66u_v2_series()
+		&& (is_ac66u_v2_series() || is_ac68u_v3_series())
 #endif
 	) {
 #if defined(RTAC68U) ||  defined(RTAC87U) || defined(RTAC3200) || defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
-		if (rule_setup)
+		if (rule_setup) {
+			led_control(LED_WAN, LED_ON);
 			disable_wan_led();
-		else
+		} else
 			enable_wan_led();
 #elif defined(DSL_AC68U)
 		if (rule_setup) {
@@ -3269,7 +3270,7 @@ _dprintf("wanduck(%d)(first detect start): state %d, state_old %d, changed %d, w
 #elif defined(RTAC68U) || defined(RTAC87U) || defined(RTAC3200) || defined(RTCONFIG_BCM_7114) || (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX))
 		if(nvram_match("AllLED", "1")
 #ifdef RTAC68U
-				&& is_ac66u_v2_series()
+				&& (is_ac66u_v2_series() || is_ac68u_v3_series())
 #endif
 				)
 		{
@@ -4356,7 +4357,7 @@ _dprintf("nat_rule: start_nat_rules 6.\n");
 #elif defined(RTAC68U) || defined(RTAC87U) || defined(RTAC3200) || defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
 					if(
 #ifdef RTAC68U
-						is_ac66u_v2_series()
+						(is_ac66u_v2_series() || is_ac68u_v3_series())
 #else
 						1
 #endif // RTAC68U
@@ -4366,8 +4367,10 @@ _dprintf("nat_rule: start_nat_rules 6.\n");
 #endif // RTCONFIG_DUALWAN
 					){
 						logmessage("DualWAN", "skip single wan wan_led_control - WANRED off\n");
-						if(nvram_match("AllLED", "1"))
+						if (nvram_match("AllLED", "1")) {
+							led_control(LED_WAN, LED_ON);
 							disable_wan_led();
+						}
 					}
 #endif
 
@@ -4441,7 +4444,7 @@ _dprintf("nat_rule: start_nat_rules 6.\n");
 #elif defined(RTAC68U) || defined(RTAC87U) || defined(RTAC3200) || defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
 				if(nvram_match("AllLED", "1")
 #ifdef RTAC68U
-						&& is_ac66u_v2_series()
+						&& (is_ac66u_v2_series() || is_ac68u_v3_series())
 #endif
 						)
 					enable_wan_led();
@@ -4576,7 +4579,7 @@ _dprintf("nat_rule: stop_nat_rules 7.\n");
 		if (strcmp(dualwan_wans, "wan none")) {
 			if(nvram_match("AllLED", "1")
 #ifdef RTAC68U
-				&& is_ac66u_v2_series()
+				&& (is_ac66u_v2_series() || is_ac68u_v3_series())
 #endif
 			){
 				link_status = 0;

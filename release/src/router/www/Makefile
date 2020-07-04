@@ -451,7 +451,6 @@ endif
 ifneq ($(RTCONFIG_ROG_UI),y)
 	rm -rf $(INSTALLDIR)/www/images/New_ui/indicator.png
 	rm -rf $(INSTALLDIR)/www/images/New_ui/speedmeter.png
-	rm -rf $(INSTALLDIR)/www/images/New_ui/speedmeter_2.png
 endif
 endif
 ifneq ($(RTCONFIG_ADBLOCK),y)
@@ -568,12 +567,8 @@ endif
 	rm -rf $(INSTALLDIR)/www/images/New_ui/upgrade_hover.svg
 endif
 ifneq ($(RTCONFIG_WTF_REDEEM)$(RTCONFIG_WTFAST), y)
-	rm -rf $(INSTALLDIR)/www/images/New_ui/game.svg
-	rm -rf $(INSTALLDIR)/www/GameBoost.asp
 	rm -rf $(INSTALLDIR)/www/images/New_ui/GameBoost_AiProtection.png
 	rm -rf $(INSTALLDIR)/www/images/New_ui/GameBoost_QoS.png
-	rm -rf $(INSTALLDIR)/www/images/New_ui/GameBoost_WTFast.png
-	rm -rf $(INSTALLDIR)/www/images/New_ui/mainimage_img_Game.jpg
 endif
 
 ifneq ($(RTCONFIG_IPSEC), y)
@@ -775,10 +770,7 @@ endif
 
 ifneq ($(RTCONFIG_ROG_UI),y)
 	rm -rf $(INSTALLDIR)/www/fonts
-	rm -rf $(INSTALLDIR)/www/images/gameprofile
 	rm -rf $(INSTALLDIR)/www/images/triLvGameAcceleration
-	rm -rf $(INSTALLDIR)/www/css/basic.css
-	rm -rf $(INSTALLDIR)/www/css/gameprofile.css
 	rm -rf $(INSTALLDIR)/www/css/triLvGameAcceleration.css
 	rm -rf $(INSTALLDIR)/www/ajax_wanlink.asp
 endif

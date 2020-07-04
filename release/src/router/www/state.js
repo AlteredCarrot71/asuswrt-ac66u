@@ -559,7 +559,7 @@ var movistarTriple_support = isSupport("movistarTriple");
 var utf8_ssid_support = isSupport("utf8_ssid");
 var wpa3_support = isSupport('wpa3');
 var uu_support = isSupport('uu_accel');
-
+var gameMode_support = isSupport('gameMode');
 var QISWIZARD = "QIS_wizard.htm";
 
 var wl_version = "<% nvram_get("wl_version"); %>";
@@ -1524,6 +1524,9 @@ function showMenuTree(menuList, menuExclude){
 			}
 			else if(isSupport("amazon_avs") && current_url.indexOf("Advanced_Smart_Home_Alexa") >= 0 && tableHeight < 890){
 				document.getElementById("FormTitle").style.height = "890px";
+			}
+			else if(current_url.indexOf("GameBoost.asp") != -1){
+				document.getElementById("FormTitle").style.height = "auto";
 			}
 			else{
 				document.getElementById("FormTitle").style.height = tableHeight - CONTENT_PADDING + "px";
@@ -2516,14 +2519,24 @@ function refreshStatus(xhr){
 	
 	//Adaptive QoS mode	
 	if(bwdpi_support && qos_enable_flag && qos_type_flag == "1"){
-		if(bwdpi_app_rulelist == "9,20<8<4<0,5,6,15,17<13,24<1,3,14<7,10,11,21,23<<game")
-			document.getElementById("bwdpi_status").className = "bwdpistatus_game";			
-		else if(bwdpi_app_rulelist == "9,20<4<0,5,6,15,17<8<13,24<1,3,14<7,10,11,21,23<<media")
+		if(bwdpi_app_rulelist.indexOf('game') != -1){
+			document.getElementById("bwdpi_status").className = "bwdpistatus_game";
+		}	
+		else if(bwdpi_app_rulelist.indexOf('media') != -1){
 			document.getElementById("bwdpi_status").className = "bwdpistatus_media";
-		else if(bwdpi_app_rulelist == "9,20<13,24<4<0,5,6,15,17<8<1,3,14<7,10,11,21,23<<web")
+		}
+		else if(bwdpi_app_rulelist.indexOf('web') != -1){
 			document.getElementById("bwdpi_status").className = "bwdpistatus_web";
-		else
-			document.getElementById("bwdpi_status").className = "bwdpistatus_customize";			
+		}
+		else if(bwdpi_app_rulelist.indexOf('eLearning') != -1){
+			document.getElementById("bwdpi_status").className = "bwdpistatus_eLearning";
+		}
+		else if(bwdpi_app_rulelist.indexOf('videoConference') != -1){
+			document.getElementById("bwdpi_status").className = "bwdpistatus_videoConference";
+		}
+		else{
+			document.getElementById("bwdpi_status").className = "bwdpistatus_customize";
+		}		
 		
 		document.getElementById("bwdpi_status").onclick = function(){openHint(24,9);}
 		document.getElementById("bwdpi_status").onmouseover = function(){overHint("A");}

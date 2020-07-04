@@ -352,7 +352,18 @@ function initial(){
 				inputCtrl(document.form.wl_itxbf, 0);
 			}
 			else{
-				document.getElementById('wl_txbf_desc').innerHTML = "<#WLANConfig11b_x_acBeam#>";
+				if(band5g_11ax_support){
+					if(wl_unit_value == '1' && based_modelid == 'RT-AX92U'){
+						document.getElementById('wl_txbf_desc').innerHTML = "<#WLANConfig11b_x_acBeam#>";
+					}
+					else{
+						document.getElementById('wl_txbf_desc').innerHTML = "<#WLANConfig11b_x_axBeam#>";
+					}			
+				}
+				else{
+					document.getElementById('wl_txbf_desc').innerHTML = "<#WLANConfig11b_x_acBeam#>";
+				}
+				
 				inputCtrl(document.form.wl_txbf, 1);
 				inputCtrl(document.form.wl_itxbf, 1);
 			}
@@ -675,16 +686,25 @@ function initial(){
 		}
 	}
 
-	if(ofdma_support && wl_unit_value != '0'){
+	if(ofdma_support){
+		var wl_11ax = '<% nvram_get("wl_11ax"); %>';
 		if(document.form.wl_nmode_x.value == '0' || document.form.wl_nmode_x.value == '8'){
 			if (based_modelid != 'RT-AX92U' || (wl_unit_value != '0' && wl_unit_value != '1')) {
 				$('#ofdma_field').show();
-				configureOFDMA();
+				if(wl_11ax == '0'){
+					document.form.wl_ofdma.value = 0;
+					document.form.wl_ofdma.disabled = true;
+					$('#ofdma_hint').show();
+				}
 			}
 		}
 		else if(document.form.wl_nmode_x.value == '9'){
 			$('#ofdma_field').show();
-			configureOFDMA();
+			if(wl_11ax == '0'){
+				document.form.wl_ofdma.value = 0;
+				document.form.wl_ofdma.disabled = true;
+				$('#ofdma_hint').show();
+			}
 		}
 	}
 }
@@ -1525,40 +1545,6 @@ function checkWLReady(){
   	});
 }
 
-function configureOFDMA(){
-	if(wl_unit_value == '1'){	// 5GHz/5GHz-1
-		var _temp = document.form.wl1_he_features.value;
-	}
-	else if(wl_unit_value == '2'){  // 5 GHz-2
-		var _temp = document.form.wl2_he_features.value;
-	}
-	else{		// 2.4 GHz
-		var _temp = document.form.wl0_he_features.value;
-	}
-
-	if(_temp == '0'){
-		_temp = 3;
-		document.form.ofdma.disabled = true;
-	}
-
-	document.form.ofdma.value = _temp;
-}
-
-function setOFDMA(){
-	var he_val = document.form.ofdma.value;
-	if(wl_unit_value == '1'){	// 5GHz/5GHz-1
-		document.form.wl1_he_features.disabled = false;
-		document.form.wl1_he_features.value = he_val;
-	}
-	else if(wl_unit_value == '2'){  // 5 GHz-2
-		document.form.wl2_he_features.disabled = false;
-		document.form.wl2_he_features.value = he_val;
-	}
-	else{		// 2.4 GHz
-		document.form.wl0_he_features.disabled = false;
-		document.form.wl0_he_features.value = he_val;
-	}
-}
 </script>
 </head>
 
@@ -1915,12 +1901,14 @@ function setOFDMA(){
 						</td>
 					</tr>
 					<tr id="ofdma_field" style="display:none">
-						<th><a class="hintstyle" href="javascript:void(0);" onClick="">OFDMA</a></th>
+						<th><a class="hintstyle"><#OFDMA_title#></a></th>
 						<td>
 							<div style="display:table-cell;vertical-align:middle">
-								<select name="ofdma" class="input_option">
-									<option value="3"><#WLANConfig11b_WirelessCtrl_buttonname#></option>
-									<option value="7"><#WLANConfig11b_WirelessCtrl_button1name#></option>
+								<select name="wl_ofdma" class="input_option">
+									<option value="0" <% nvram_match("wl_ofdma", "0","selected"); %>><#WLANConfig11b_WirelessCtrl_buttonname#></option>
+									<option value="1" <% nvram_match("wl_ofdma", "1","selected"); %>>DL OFDMA only</option>
+									<option value="2" <% nvram_match("wl_ofdma", "2","selected"); %>>DL/UL OFDMA</option>
+									<option value="3" <% nvram_match("wl_ofdma", "3","selected"); %>>DL/UL OFDMA + MU-MIMO</option>
 								</select>
 							</div>
 						</td>

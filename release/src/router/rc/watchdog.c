@@ -3504,7 +3504,7 @@ void btn_check(void)
 #endif
 #else
 #ifdef RTAC68U
-			if (is_ac66u_v2_series())
+			if (is_ac66u_v2_series() || is_ac68u_v3_series())
 				kill_pidfile_s("/var/run/wanduck.pid", SIGUSR2);
 			else
 #endif
@@ -6289,7 +6289,7 @@ void ntevent_intranet_usage_insight()
 	tm = localtime(&now);
 
 	/* send event at 9:00 each Monday */
-	if (tm->tm_wday == 1 && tm->tm_hour == 9) {
+	if (tm->tm_wday == 1 && tm->tm_hour == 9 && tm->tm_min == 0) {
 		snprintf(str, 32, "0x%x", HINT_INTERNET_USAGE_INSIGHT_EVENT);
 		eval("Notify_Event2NC", str, "");
 	}
@@ -6385,6 +6385,10 @@ static void auto_firmware_check()
 	if (bootup_check || periodic_check || period_retry!=0)
 #endif
 	{
+#if defined(RTCONFIG_ASUSCTRL) && defined(GTAC5300)
+		if (periodic_check)
+			asus_ctrl_sku_update();
+#endif
 #ifdef RTCONFIG_ASD
 		//notify asd to download version file
 		if (pids("asd"))

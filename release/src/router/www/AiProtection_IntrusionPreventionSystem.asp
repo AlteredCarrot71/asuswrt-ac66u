@@ -605,11 +605,11 @@ var download = function(content, fileName, mimeType) {
 <div id="TopBanner"></div>
 <div id="Loading" class="popup_bg"></div>
 <div id="erase_confirm" class="confirm">
-	<div style="margin: 16px 24px;font-size:24px;"><span id="model_name"></span> says</div>
-	<div style="margin: 16px 24px;font-size:16px;">Are you sure want to permanently delete events.</div>
+	<div style="margin: 16px 24px;font-size:24px;"><span id="model_name"></span> : </div>
+	<div style="margin: 16px 24px;font-size:16px;"><#AiProtection_event_del_confirm#></div>
 	<div style="display:flex;justify-content: flex-end;margin: 36px 24px;">
-		<div class="confirm-button" onclick="hideConfirm();">Cancel</div>
-		<div class="confirm-button" onclick="eraseDatabase();">OK</div>
+		<div class="confirm-button" onclick="hideConfirm();"><#CTL_Cancel#></div>
+		<div class="confirm-button" onclick="eraseDatabase();"><#CTL_ok#></div>
 	</div>
 </div>
 <div id="hiddenMask" class="popup_bg" style="z-index:999;">

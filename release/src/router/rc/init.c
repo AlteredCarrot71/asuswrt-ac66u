@@ -358,7 +358,7 @@ misc_ioctrl(void)
 		case MODEL_RTAC86U:
 		case MODEL_RTAC3100:
 #ifdef RTAC68U
-			if (!is_ac66u_v2_series())
+			if (!is_ac66u_v2_series() && !is_ac68u_v3_series())
 				return;
 #endif
 
@@ -1120,10 +1120,10 @@ void usbctrl_default()
 
 		http_passwd = nvram_safe_get("http_passwd");
 #ifdef RTCONFIG_NVRAM_ENCRYPT
-		int declen = pw_dec_len(http_passwd);
+		int declen = strlen(http_passwd);
 		char dec_passwd[declen];
 		memset(dec_passwd, 0, sizeof(dec_passwd));
-		pw_dec(http_passwd, dec_passwd);
+		pw_dec(http_passwd, dec_passwd, sizeof(dec_passwd));
 
 		char_to_ascii_safe(ascii_passwd, dec_passwd, 84);
 
@@ -4011,6 +4011,7 @@ int init_nvram(void)
 		add_rc_support("switchctrl");
 		add_rc_support("manual_stb");
 		add_rc_support("11AC");
+		add_rc_support("gameMode");
 		add_rc_support("app");
 		//add_rc_support("pwrctrl");
 		// the following values is model dep. so move it from default.c to here
@@ -5950,6 +5951,7 @@ int init_nvram(void)
 		add_rc_support("movistarTriple");
 		add_rc_support("11AC");
 		add_rc_support("app");
+		add_rc_support("gameMode");
 
 		// the following values is model dep. so move it from default.c to here
 		nvram_set("wl0_HT_TxStream", "4");
@@ -7147,6 +7149,7 @@ int init_nvram(void)
 			nvram_set_int("btn_led_gpio", 5);		// active high
 #endif
 #ifdef RTCONFIG_LOGO_LED
+			if (!is_ac68u_v3_series())
 			nvram_set_int("led_logo_gpio", 4|GPIO_ACTIVE_LOW);
 #endif
 			nvram_set_int("led_usb_gpio", 0|GPIO_ACTIVE_LOW);
@@ -7166,6 +7169,8 @@ int init_nvram(void)
 #ifdef RTCONFIG_WIFI_TOG_BTN
 			nvram_set_int("btn_wltog_gpio", 15|GPIO_ACTIVE_LOW);
 #endif
+			if (is_ac68u_v3_series())
+				nvram_set_int("led_wan_gpio", 4);
 		} else {
 			nvram_set_int("led_pwr_gpio", 0|GPIO_ACTIVE_LOW);
 			nvram_set_int("led_wan_gpio", 5);
@@ -7244,6 +7249,7 @@ int init_nvram(void)
 #ifndef RT4GAC68U
 		if (hw_usb_cap())
 		add_rc_support("app");
+		add_rc_support("gameMode");
 #endif
 		if (!hw_vht_cap())
 			add_rc_support("no_vht");
@@ -7423,6 +7429,7 @@ int init_nvram(void)
 		add_rc_support("meoVoda");
 		add_rc_support("movistarTriple");
 		add_rc_support("app");
+		add_rc_support("gameMode");
 
 		break;
 #endif
@@ -7591,6 +7598,7 @@ int init_nvram(void)
 		add_rc_support("movistarTriple");
 		add_rc_support("wifi2017");
 		add_rc_support("meoVoda");
+		add_rc_support("gameMode");
 		add_rc_support("app");
 		if (!strncmp(nvram_safe_get("territory_code"), "CX", 2)) {
 			add_rc_support("nz_isp");
@@ -7817,6 +7825,9 @@ int init_nvram(void)
 		add_rc_support("meoVoda");
 		add_rc_support("movistarTriple");
 		add_rc_support("app");
+#if defined(RTAC88U)
+		add_rc_support("gameMode");
+#endif			
 		nvram_set("ehci_irq", "111");
 		nvram_set("xhci_irq", "112");
 #ifdef RTCONFIG_MMC_LED
@@ -10734,6 +10745,9 @@ static void sysinit(void)
 	nvram_set("success_start_service", "0");
 #endif
 	init_nvram();  // for system indepent part after getting model
+#ifdef RTCONFIG_JFFS_NVRAM
+	start_jffs2();
+#endif
 	restore_defaults(); // restore default if necessary
 	init_nvram2();
 
@@ -10985,7 +10999,7 @@ int init_main(int argc, char *argv[])
 		}
 		sigprocmask(SIG_BLOCK, &sigset, NULL);
 
-#if !defined(RTCONFIG_TEST_BOARDDATA_FILE)
+#if !defined(RTCONFIG_TEST_BOARDDATA_FILE) && !defined(RTCONFIG_JFFS_NVRAM)
 		start_jffs2();
 #endif
 #ifdef RTCONFIG_NVRAM_ENCRYPT

@@ -501,9 +501,12 @@ function btnNext() {
 		document.form.dslx_annex.value = "3";
 	}
 	if(parent.based_modelid == "DSL-AC68U") {
+		if(document.form.dsltmp_cfg_country.value=='Turkey'){
+			document.form.dslx_bitswap.value = "0";
+		}
+
 		if( document.form.dsltmp_cfg_country.value=='Turkey'
-			&& document.form.dsltmp_cfg_ispname.value.search("Turk Telekom") >= 0
-		){
+			&& document.form.dsltmp_cfg_ispname.value.search("Turk Telekom") >= 0 ){
 			document.form.dslx_testlab.value = "TR_TT";
 			document.form.dslx_dla_enable.value = "0";
 		}
@@ -591,6 +594,7 @@ function btnNext() {
 <input type="hidden" name="dslx_annex" value="<% nvram_get("dslx_annex"); %>">
 <input type="hidden" name="dslx_testlab" value="<% nvram_get("dslx_testlab"); %>">
 <input type="hidden" name="dslx_dla_enable" value="<% nvram_get("dslx_dla_enable"); %>">
+<input type="hidden" name="dslx_bitswap" value="<% nvram_get("dslx_bitswap"); %>">
 
 <div class="QISmain">
 	<div class="formfonttitle" style="padding:6 0 0 10;">

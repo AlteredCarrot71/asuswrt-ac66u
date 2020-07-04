@@ -1003,7 +1003,7 @@ function check_fw_relese_note_status() {
 			success: function() {
 				switch(cfg_note) {
 					case "0" :
-						check_fw_relese_note_status();
+						setTimeout(function(){check_fw_release_note_status();}, 1000);
 						break;
 					case "1" :
 						show_fw_relese_note_result(true);
@@ -1017,16 +1017,18 @@ function check_fw_relese_note_status() {
 		});
 	}
 }
-function show_fw_relese_note_result(_status) {
-	if($(".confirm_block").children().find("#status_iframe").contents().find("#amas_relese_note").length == 0)
-		show_fw_relese_note_result(_status);
+function show_fw_release_note_result(_status) {
+	/*if($(".confirm_block").children().find("#status_iframe").contents().find("#amas_release_note").length == 0)
+		show_fw_release_note_result(_status);*/
 
 	if(_status) {
-		$(".confirm_block").children().find("#status_iframe").attr("src", "get_release_note_amas.asp");//reload
+		$(".confirm_block").children().find("#status_iframe").attr("src", "get_release_note_amas.asp?flag=1");//reload and flag_show
+		$(".confirm_block").children().find("#status_iframe").load();
+		/*
 		$(".confirm_block").children().find("#status_iframe").load(function() {
-			$(".confirm_block").children().find("#status_iframe").contents().find("#amas_relese_note").css("display", "");
-			$(".confirm_block").children().find("#status_iframe").contents().find("#amas_relese_note_hint").css("display", "none");
-		});
+			$(".confirm_block").children().find("#status_iframe").contents().find("#amas_release_note").css("display", "");
+			$(".confirm_block").children().find("#status_iframe").contents().find("#amas_release_note_hint").css("display", "none");
+		});*/
 	}
 	else
 		$(".confirm_block").children().find("#status_iframe").contents().find("#amas_relese_note_hint").val("Fail to grab release note");/* untranslated */
