@@ -462,8 +462,8 @@ function btnNext() {
 		if(document.form.dsltmp_cfg_vid.value != "")
 			document.form.dsltmp_cfg_dot1q.value = 1;
 		document.form.dsltmp_cfg_iptv_idx.value = "";
-		document.form.dsltmp_cfg_ispname.value = "";
-		document.form.dsltmp_cfg_country.value = "";
+		document.form.dsltmp_cfg_ispname.value = "";		
+		document.form.dsltmp_cfg_country.value = (document.form.country.value=='Turkey')? document.form.country.value:"";
 	}
 	else {
 		var isp_idx = 0
@@ -502,6 +502,9 @@ function btnNext() {
 	}
 	if(parent.based_modelid == "DSL-AC68U") {
 		if(document.form.dsltmp_cfg_country.value=='Turkey'){
+			if(document.form.dslx_bitswap.value != "0"){
+				parent.restartDSLSetting = true;
+			}
 			document.form.dslx_bitswap.value = "0";
 		}
 

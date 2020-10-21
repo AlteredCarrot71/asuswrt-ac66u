@@ -95,6 +95,9 @@ if(wan_unit == "0")
 else
 	var wan_ipaddr = '<% nvram_get("wan1_ipaddr"); %>';
 
+var le_enable = '<% nvram_get("le_enable"); %>';
+var orig_http_enable = '<% nvram_get("http_enable"); %>';
+
 function initial(){	
 	//parse nvram to array
 	var parseNvramToArray = function(oriNvram) {
@@ -282,6 +285,8 @@ function initial(){
 		$('select[name="usb_idle_enable"]').prop("disabled", false);
 		$('input[name="usb_idle_timeout"]').prop("disabled", false);
 	}
+
+	$("#https_download_cert").css("display", (le_enable == "0" && orig_http_enable != "0")? "": "none");
 }
 
 var time_zone_tmp="";
@@ -977,6 +982,22 @@ function hide_https_lanport(_value){
 	else{
 		document.getElementById("https_access_page").style.display = 'none';
 	}
+
+
+	if(le_enable == "0" && _value != "0"){
+		$("#https_download_cert").css("display", "");
+		if(orig_http_enable == "0"){
+			$("#download_cert_btn").css("display", "none");
+			$("#download_cert_desc").css("display", "");
+		}
+		else{
+			$("#download_cert_btn").css("display", "");
+			$("#download_cert_desc").css("display", "none");
+		}
+	}
+	else{
+		$("#https_download_cert").css("display", "none");
+	}
 }
 
 // show clientlist
@@ -1509,6 +1530,10 @@ function reset_portconflict_hint(){
 	$("#port_conflict_sshdport").hide();
 	$("#port_conflict_httpslanport").hide();
 }
+
+function save_cert_key(){
+	location.href = "cert.tar";
+}
 </script>
 </head>
 
@@ -1955,6 +1980,14 @@ function reset_portconflict_hint(){
 						<span id="port_conflict_httpslanport" style="color: #e68282; display: none;">Port Conflict</span>
 						<div id="https_access_page" style="color: #FFCC00;"></div>
 						<div style="color: #FFCC00;">* <#HttpsLanport_Hint#></div>
+					</td>
+				</tr>
+
+				<tr id="https_download_cert" style="display: none;">
+					<th>Download Certificate</th>
+					<td>
+						<input id="download_cert_btn" class="button_gen" onclick="save_cert_key();" type="button" value="<#btn_Export#>" />
+						<span id="download_cert_desc">Download and install SSL certificate on your browser to trust accessing your local domain “router.asus.com” with HTTPS protocol. To export certificate after applying setting.</span><a href="https://www.asus.com/support/FAQ/1034294" style="font-family:Lucida Console;text-decoration:underline;color:#FFCC00; margin-left: 5px;" target="_blank">FAQ</a>
 					</td>
 				</tr>
 			</table>

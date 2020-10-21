@@ -18,6 +18,7 @@ CFLAGS	+= -I.. -I$(SRCBASE)/include -I$(SRCBASE)/common/include -I$(SRCBASE)/rou
 CFLAGS	+= $(WLAN_ComponentIncPath)
 
 #CFLAGS	+= -g -DDEBUG
+CFLAGS += -DBCMDBG
 CFLAGS	+= -s
 CFLAGS  += -DNAS_WKSP_BUILD_NAS_AUTH
 CFLAGS  += -DNAS_WKSP_BUILD_NAS_SUPPL

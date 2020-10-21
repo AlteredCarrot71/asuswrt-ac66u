@@ -21,6 +21,7 @@
 <script language="JavaScript" type="text/javascript" src="/js/asus_eula.js"></script>
 <script type="text/javascript" src="/client_function.js"></script>
 <script type="text/javascript" src="/form.js"></script>
+<script type="text/javascript" src="/validator.js"></script>
 <style>
 *{
 	box-sizing: content-box;
@@ -97,9 +98,10 @@ body{
 	width: 700px;
 	height: 600px;
 	background-color: #444f53;
-	z-index: 10;
+	z-index: 199;
 	padding: 12px 18px;
 	overflow-y: auto;
+	margin-top: -40px;
 }
 
 .qr_code{
@@ -157,7 +159,7 @@ function initial(){
 	if(!ASUS_EULA.status("tm"))
 		ASUS_EULA.config(eula_confirm, cancel);
 
-	setTimeout("showDropdownClientList('setClientIP', 'mac>ip', 'all', 'ClientList_Block_PC', 'pull_arrow', 'all');", 1000);
+	setTimeout("showDropdownClientList('setClientIP', 'mac', 'all', 'ClientList_Block_PC', 'pull_arrow', 'all');", 500);
 	genGameList();	
 }
 
@@ -231,6 +233,7 @@ function hideClients_Block(){
 function pullLANIPList(obj){
 	var element = document.getElementById('ClientList_Block_PC');
 	var isMenuopen = element.offsetWidth > 0 || element.offsetHeight > 0;
+
 	if(isMenuopen == 0){		
 		obj.src = "/images/arrow-top.gif"
 		element.style.display = 'block';		
@@ -291,8 +294,14 @@ function genGameList(){
 function addGameList(){
 	var mac = $('#client').val();
 	var list_array = gameList.split('<');
+	var maximum = '64';
 	if(mac == ''){
 		alert('client can not be empty!');
+		return false;
+	}
+
+	if(list_array.length > maximum){
+		alert("<#JS_itemlimit1#> " + maximum + " <#JS_itemlimit2#>");
 		return false;
 	}
 
@@ -317,6 +326,8 @@ function addGameList(){
 			genGameList();
 		}
 	});
+
+	setTimeout("showDropdownClientList('setClientIP', 'mac', 'all', 'ClientList_Block_PC', 'pull_arrow', 'all');", 500);
 }
 
 function delGameList(target){
@@ -341,7 +352,9 @@ function delGameList(target){
 		success: function(response){
 			genGameList();
 		}
-	})
+	});
+
+	setTimeout("showDropdownClientList('setClientIP', 'mac', 'all', 'ClientList_Block_PC', 'pull_arrow', 'all');", 500);
 }
 
 function showGameListField(){
@@ -401,6 +414,10 @@ function enableGamePriority(){
 
 	document.form.submit();
 }
+
+function applyRule(){
+	document.form.submit();
+}
 </script>
 </head>
 <body onload="initial();" onunload="unload_body();">
@@ -411,7 +428,10 @@ function enableGamePriority(){
 	<!--[if lte IE 6.5.]><script>alert("<#ALERT_TO_CHANGE_BROWSER#>");</script><![endif]-->
 </div>
 <div id="gameList_block" style="display:none">
-	<div style="display:flex;justify-content: flex-end;align-items: center;">
+	<div style="display:flex;justify-content: space-between;align-items: center;">
+		<div>
+			<input type="button" class="button_gen" value="<#CTL_apply#>" onclick="applyRule();">
+		</div>
 		<div style="width:28px;height:28px;background-image:url('images/New_ui/cancel.svg');cursor:pointer" onclick="hideGameListField();"></div>
 	</div>
 	

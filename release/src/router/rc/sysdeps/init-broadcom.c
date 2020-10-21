@@ -35,6 +35,8 @@
 
 #include <linux/major.h>
 
+#define WL_IF_PREFIX "eth%d"
+
 #ifdef RTCONFIG_BCMWL6
 #include <d11.h>
 #define WLCONF_PHYTYPE2STR(phy)	((phy) == PHY_TYPE_A ? "a" : \
@@ -2337,7 +2339,7 @@ void load_wl()
 	char ifname[16] = {0};
 	char instance_base[128];
 	char instance_base2[128];
-#if defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX) && !defined(RTCONFIG_MFGFW)
+#if ((defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX)) || defined(RTCONFIG_BCM_7114)) && !defined(RTCONFIG_MFGFW)
 	char word[100], tmp[100], prefix[] = "wlXXXXXXXXXX_";
 	int dhd_chk_cnt = nvram_get_int("dhd_chk_cnt");
 	int org, cur, count;
@@ -2435,11 +2437,15 @@ void load_wl()
 		}
 	}
 
+#if defined(HND_ROUTER) || defined(RTCONFIG_BCM_7114) || defined(RTCONFIG_BCM4708)
+	wl_driver_mode_update();
+#endif
+
 #ifdef WLCLMLOAD
 	download_clmblob_files();
 #endif /* WLCLMLOAD */
 
-#if defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX) && !defined(RTCONFIG_MFGFW)
+#if ((defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX)) || defined(RTCONFIG_BCM_7114)) && !defined(RTCONFIG_MFGFW)
 	nvram_set_int("dhd_chk_cnt", 0);
 	nvram_commit();
 
@@ -7917,5 +7923,61 @@ void hnd_nat_ac_init(int bootup)
 		eval("runner", "disable");
 	else if (!bootup)
 		eval("runner", "enable");
+}
+#endif
+
+#if defined(HND_ROUTER) || defined(RTCONFIG_BCM_7114) || defined(RTCONFIG_BCM4708)
+/* This function updates the nvram radio_dmode_X to NIC/DGL depending on driver mode */
+void wl_driver_mode_update(void)
+{
+	int unit = -1, maxunit = -1;
+	int i = 0;
+	char ifname[16] = {0};
+
+	/* Search for existing wl devices with eth prefix and the max unit number used */
+	for (i = 0; i <= DEV_NUMIFS; i++) {
+		snprintf(ifname, sizeof(ifname), WL_IF_PREFIX, i);
+		if (!wl_probe(ifname)) {
+			int unit = -1;
+			char mode_str[128];
+			char *mode = "NIC";
+
+#ifdef __CONFIG_DHDAP__
+			mode = dhd_probe(ifname) ? "NIC" : "DGL";
+#endif // endif
+
+			if (!wl_ioctl(ifname, WLC_GET_INSTANCE, &unit, sizeof(unit))) {
+				maxunit = (unit > maxunit) ? unit : maxunit + 1;
+				sprintf(mode_str, "wlradio_dmode_%d", maxunit);
+				if (strcmp(nvram_safe_get(mode_str), mode) != 0) {
+					printf("%s: Setting %s = %s\n",
+						__FUNCTION__, mode_str, mode);
+					nvram_set(mode_str, mode);
+				}
+			}
+		}
+	}
+
+	/* Search for existing wl devices with wl prefix and the max unit number used */
+	for (i = 0; i <= DEV_NUMIFS; i++) {
+		snprintf(ifname, sizeof(ifname), "wl%d", i);
+		if (!wl_probe(ifname)) {
+			char mode_str[128];
+			char *mode = "NIC";
+
+#ifdef __CONFIG_DHDAP__
+			mode = dhd_probe(ifname) ? "NIC" : "DGL";
+#endif // endif
+
+			if (!wl_ioctl(ifname, WLC_GET_INSTANCE, &unit, sizeof(unit))) {
+				sprintf(mode_str, "wlradio_dmode_%d", i);
+				if (strcmp(nvram_get(mode_str), mode) != 0) {
+					printf("%s: Setting %s = %s\n",
+						__FUNCTION__, mode_str, mode);
+					nvram_set(mode_str, mode);
+				}
+			}
+		}
+	}
 }
 #endif

@@ -33,27 +33,13 @@
 #endif
 #include <rtconfig.h>
 
-/* DEBUG DEFINE */
-#define HTTPD_DEBUG             "/tmp/HTTPD_DEBUG"
-#if (defined(RTCONFIG_JFFS2) || defined(RTCONFIG_JFFSV1) || defined(RTCONFIG_BRCM_NAND_JFFS2) || defined(RTCONFIG_UBIFS))
-#define HTTPD_DEBUG_FILE                "/jffs/HTTPD_DEBUG.log"
-#else
-#define HTTPD_DEBUG_FILE                  "/tmp/HTTPD_DEBUG.log"
-#endif
-
-/* DEBUG FUNCTION */
-extern void Debug2File(const char *path, const char *fmt, ...);
-#define HTTPD_DBG(fmt, args...) ({ \
-	int save_errno = errno; \
-	if (f_exists(HTTPD_DEBUG) > 0 || nvram_get_int("HTTPD_DBG") > 0) \
-		Debug2File(HTTPD_DEBUG_FILE, "[%s:(%d)]: "fmt, __FUNCTION__, __LINE__, ##args); \
-	errno = save_errno; \
-})
-
 /* Basic authorization userid and passwd limit */
 #define AUTH_MAX 64
 
 #define DEFAULT_LOGIN_MAX_NUM	5
+
+/* Limit of login failure. If the number of login failure excceds this limit, captcha will show. */
+#define CAPTCHA_MAX_LOGIN_NUM   2
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -159,6 +145,9 @@ struct REPLACE_PRODUCTID_S {
 #define LOGINLOCK	7
 #define ISLOGOUT	8
 #define NOLOGIN		9
+#ifdef RTCONFIG_CAPTCHA
+#define WRONGCAPTCHA   10
+#endif
 
 #define LOCKTIME 60*5
 
@@ -203,6 +192,7 @@ enum {
 	HTTP_INVALID_IPADDR,
 	HTTP_INVALID_TS,
 	HTTP_INVALID_FILE,
+        HTTP_INVALID_SUPPORT,
 	HTTP_SHMGET_FAIL = 5000,
 	HTTP_FB_SVR_FAIL
 };
@@ -322,6 +312,7 @@ typedef char char_t;
 #define websDefaultHandler(wp, urlPrefix, webDir, arg, url, path, query) ({ do_ej(path, wp); fflush(wp); 1; })
 #define websWriteData(wp, buf, nChars) ({ int TMPVAR = fwrite(buf, 1, nChars, wp); fflush(wp); TMPVAR; })
 #define websWriteDataNonBlock websWriteData
+#define nvram_default_safe_get(name) (nvram_default_get(name) ? : "")
 
 extern int ejArgs(int argc, char_t **argv, char_t *fmt, ...);
 
@@ -376,7 +367,7 @@ extern void set_cgi(char *name, char *value);
 /* httpd.c */
 extern int json_support;
 extern int amas_support;
-extern void start_ssl(void);
+extern void start_ssl(int http_port);
 extern char *gethost(void);
 extern void http_logout(unsigned int ip, char *cookies, int fromapp_flag);
 extern int is_auth(void);
@@ -491,5 +482,8 @@ extern int is_amas_support(void);
 extern void do_set_fw_path_cgi(char *url, FILE *stream);
 #if defined(RTCONFIG_AMAZON_WSS)
 extern void amazon_wss_enable(char *wss_enable, char *do_rc);
+#endif
+#ifdef RTCONFIG_CAPTCHA
+extern int is_captcha_match(char *catpch);
 #endif
 #endif /* _httpd_h_ */

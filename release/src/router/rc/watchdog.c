@@ -68,6 +68,9 @@
 #include <wlutils.h>
 #endif
 #endif
+#ifdef RTAC88U
+#include <rtk_switch.h>
+#endif
 
 #if defined(RTCONFIG_NOTIFICATION_CENTER)
 #include <libnt.h>
@@ -2234,14 +2237,73 @@ void service_check(void)
 {
 	static int boot_ready = 0;
 
-	if (boot_ready > 6)
+	if (boot_ready > 6) {
+#if defined(RTCONFIG_BCM_7114) || (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX))
+	    dummy_alert_led_wifi();
+#endif
 		return;
+	}
 
 	if (!nvram_match("success_start_service", "1"))
 		return;
-
-	led_control(LED_POWER, ++boot_ready%2);
+#if defined(RTCONFIG_BCM_7114) || (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX))
+	int idx;
+	if (dummy_alert_led_pwr()) {
+	    if(boot_ready) {
+		for(idx=0; idx < 6; idx++) {
+		    usleep(100*1000);
+		    led_control(LED_POWER, idx%2);
+		}
+	    }
+	    boot_ready++;
+	}
+	else
+#endif
+		led_control(LED_POWER, ++boot_ready%2);
 }
+
+#ifdef RTAC88U
+int rtl_period = 3, sltime = 3, rtl_fail_max = 1;
+static int rtl_count = 0, rtl_fail = 0;
+
+void rtkl_check()
+{
+	if(rtl_count++ >= rtl_period) {
+		rtl_count = 0;
+
+		if((rtkswitch_ioctl(GET_AWARE, 0, 0)) < 0 || rtkswitch_ioctl(GET_LANPORTS_LINK_STATUS, 0, 0) < 0) 
+			rtl_fail++;
+//#if 0
+		if(nvram_match("rtl_dbg", "1")) {
+			_dprintf("NOW rtl_fail=%d\n", rtl_fail);
+			//_dprintf("Now rtl_fail=%d, force to 2\n", rtl_fail);
+			//rtl_fail = 2;
+		}
+//#endif
+		if(rtl_fail >= rtl_fail_max) {
+			logmessage("rtl_fail", "\nrtkswitch fail access, restart.\n");
+			//kill(1, SIGTERM);
+			_dprintf("rtl_fail:%d, hw reset it\n", rtl_fail);
+
+			set_gpio(10, 0);
+			sleep(1);
+			set_gpio(10, 1);
+
+			sleep(sltime);
+			//if(nvram_match("eval", "1"))
+			//	eval("rtkswitch", "1");
+			//else
+			rtkswitch_ioctl(INIT_SWITCH, 0, 0);
+			rtkswitch_ioctl(INIT_SWITCH_UP, 0, 0);
+			rtkswitch_ioctl(SET_EXT_TXDELAY, 1, 0);
+			rtkswitch_ioctl(SET_EXT_RXDELAY, 4, 0);
+		
+			//nvram_set("rtl_dbg", "0");
+			rtl_fail = 0;
+		}
+	}
+}
+#endif
 
 /* @return:
  * 	0:	not in MFG mode.
@@ -6333,7 +6395,6 @@ static void ntevent_disk_usage_check(){
 }
 #endif
 
-#ifdef RTCONFIG_FORCE_AUTO_UPGRADE
 /* DEBUG DEFINE */
 #define FAUPGRADE_DEBUG             "/tmp/FAUPGRADE_DEBUG"
 
@@ -6431,7 +6492,7 @@ static void auto_firmware_check()
 #ifdef RTCONFIG_DSL
 		eval("/usr/sbin/notif_update.sh");
 #endif
-
+#ifdef RTCONFIG_FORCE_AUTO_UPGRADE
 		if (nvram_get_int("webs_state_update")
 				&& !nvram_get_int("webs_state_error")
 				&& !nvram_get_int("webs_state_dl_error")
@@ -6473,10 +6534,14 @@ static void auto_firmware_check()
 		else{
 			FAUPGRADE_DBG("could not retrieve firmware information: webs_state_update = %d, webs_state_error = %d, webs_state_dl_error = %d, webs_state_info.len = %d", nvram_get_int("webs_state_update"), nvram_get_int("webs_state_error"), nvram_get_int("webs_state_dl_error"), strlen(nvram_safe_get("webs_state_info")));
 		}
+#else
+		period_retry = 0; //stop retry
+#endif
 		return;
 	}
+
 }
-#endif
+
 
 #if defined(RTCONFIG_LP5523) || defined(RTCONFIG_LYRA_HIDE)
 #define FILE_LP5523 "/tmp/lp5523_log"
@@ -7834,6 +7899,10 @@ void watchdog(int sig)
 	service_check();
 #endif
 
+#ifdef RTAC88U
+	rtkl_check();
+#endif
+
 #if defined(RTCONFIG_QCA) && defined(RTCONFIG_WIGIG)
 	wigig_temperatore_check();
 #endif
@@ -7981,6 +8050,10 @@ void watchdog(int sig)
 
 #if defined(RTCONFIG_HND_ROUTER_AX) && defined(RTCONFIG_BCM_MFG)
 	ate_temperature_record();
+#endif
+
+#if defined(HND_ROUTER) || defined(RTCONFIG_BCM_7114) || defined(RTCONFIG_BCM4708)
+	dump_WlGetDriverStats(0, 1);
 #endif
 
 #ifdef WATCHDOG_PERIOD2
@@ -8155,6 +8228,12 @@ watchdog_main(int argc, char *argv[])
 #ifdef RTCONFIG_BCMWL6
 	if (mediabridge_mode())
 		wlonunit = nvram_get_int("wlc_band");
+#endif
+
+#ifdef RTAC88U
+	rtl_period = nvram_get_int("rtl_period")?:3;
+	sltime = nvram_get_int("sleep")?:3; 
+	rtl_fail_max = nvram_get_int("rtl_fail_max")?:1; 
 #endif
 
 #ifdef RTCONFIG_RALINK

@@ -266,9 +266,6 @@ else
 var dsl_DataRateDown = parseInt("<% nvram_get("dsllog_dataratedown"); %>");
 var dsl_DataRateUp = parseInt("<% nvram_get("dsllog_datarateup"); %>");
 
-var qos_enable_orig = '<% nvram_get("qos_enable"); %>';
-var qos_type_orig = '<% nvram_get("qos_type"); %>';
-
 //HND_ROUTER HW NAT (fc_disable/runner_disable) ON: 0/0 ; OFF: 1/1
 var fc_disable_orig = '<% nvram_get("fc_disable"); %>';
 var runner_disable_orig = '<% nvram_get("runner_disable"); %>';
@@ -385,14 +382,14 @@ function initial(){
 	}
 
 	var qos_type = document.form.qos_type.value;
-	if(qos_enable_orig == "1"){
+	if(document.form.qos_enable_orig.value == "1"){
 		change_qos_type(qos_type);
 
 		document.getElementById('qos_type_tr').style.display = "";
 		if(adaptiveqos_support){
 			document.getElementById('int_type').style.display = "";
 			document.getElementById('int_type_link').style.display = "";
-			change_qos_type(qos_type_orig);
+			change_qos_type(document.form.qos_type_orig.value);
 		}
 		else
 			show_settings("NonAdaptive");
@@ -439,7 +436,7 @@ function initial(){
 
 	/* MODELDEP */
 	if(based_modelid == "RT-AC85U" || based_modelid == "RT-AC85P" || based_modelid == "RT-AC65U"){
-		if(qos_type_orig == "1"){
+		if(document.form.qos_type_orig.value == "1"){
 			document.getElementById('bandwidth_setting_tr').style.display = "none";
 			document.form.qos_type_radio[1].checked = true;
 		}
@@ -680,14 +677,14 @@ function validForm(){
 }
 
 function determineActionScript(){
-	if(geforceNow_support && document.form.qos_enable.value == "0" && qos_enable_orig == "0" &&
+	if(geforceNow_support && document.form.qos_enable.value == "0" && document.form.qos_enable_orig.value == "0" &&
 		(document.form.nvgfn_enable.value != orig_nvgfn_enable)){
 		document.form.action_script.value = "restart_upnp;";
 	}
 	else if( lantiq_support || Rawifi_support || (ctf_disable == "1" || ctf_disable_force == "1") ||  //BULECAVE; MTK Models; HW NAT OFF
-			 (qos_enable_orig == "1" && document.form.qos_enable.value == "0") ||   //qos enable => disable
-			 ((qos_enable_orig == document.form.qos_enable.value) && 				//qos_enable and qos_type no change
-		 	  (qos_type_orig == document.form.qos_type.value)) ){
+			 (document.form.qos_enable_orig.value == "1" && document.form.qos_enable.value == "0") ||   //qos enable => disable
+			 ((document.form.qos_enable_orig.value == document.form.qos_enable.value) && 				//qos_enable and qos_type no change
+		 	  (document.form.qos_type_orig.value == document.form.qos_type.value)) ){
 		document.form.action_script.value = "restart_qos;restart_firewall;";
 		document.form.action_wait.value = "15";
 	}
@@ -705,7 +702,7 @@ function determineActionScript(){
 		document.form.action_wait.value = "<% get_default_reboot_time(); %>";
 	}
 
-	if((qos_type_orig != document.form.qos_type.value) && document.form.qos_type.value == "0")
+	if((document.form.qos_type_orig.value != document.form.qos_type.value) && document.form.qos_type.value == "0")
 		document.form.next_page.value = "Advanced_QOSUserRules_Content.asp";
 }
 
@@ -717,7 +714,7 @@ function submitQoS(){
 				.show("tm")
 		}
 		else{
-			if(	document.form.qos_enable.value == "1" && qos_type_orig != document.form.qos_type.value &&
+			if(	document.form.qos_enable.value == "1" && document.form.qos_type_orig.value != document.form.qos_type.value &&
 				document.form.qos_type.value == 0 && lantiq_support){
 				var hwnatPrompt = "NAT traffic will be processed by CPU if traditional QoS is enabled. Are you sure want to enable?";
 				if(!confirm(hwnatPrompt)) return false;
@@ -1552,6 +1549,8 @@ function setGroup(name){
 			<input type="hidden" name="flag" value="">
 			<input type="hidden" name="TM_EULA" value="<% nvram_get("TM_EULA"); %>">
 			<input type="hidden" name="qos_enable" value="<% nvram_get("qos_enable"); %>">
+			<input type="hidden" name="qos_enable_orig" value="<% nvram_get("qos_enable"); %>">
+			<input type="hidden" name="qos_type_orig" value="<% nvram_get("qos_type"); %>">
 			<input type="hidden" name="qos_type" value="<% nvram_get("qos_type"); %>">
 			<input type="hidden" name="qos_obw" value="<% nvram_get("qos_obw"); %>" disabled>
 			<input type="hidden" name="qos_ibw" value="<% nvram_get("qos_ibw"); %>" disabled>
@@ -1633,7 +1632,7 @@ function setGroup(name){
 														$('#radio_qos_enable').iphoneSwitch('<% nvram_get("qos_enable"); %>',
 															 function() {
 																document.form.qos_enable.value = "1";
-																if(qos_enable_orig != "1"){
+																if(document.form.qos_enable_orig.value != "1"){
 																	if(document.getElementById('int_type').checked == true && adaptiveqos_support)
 																		document.form.next_page.value = "QoS_EZQoS.asp";
 																	else if(document.getElementById('trad_type').checked)		//Traditional QoS
@@ -1650,7 +1649,7 @@ function setGroup(name){
 																document.getElementById('qos_type_tr').style.display = "";
 																if(adaptiveqos_support){
 																	document.getElementById('qos_enable_hint').style.display = "";
-																	change_qos_type(qos_type_orig);
+																	change_qos_type(document.form.qos_type_orig.value);
 																}
 															 },
 															 function() {

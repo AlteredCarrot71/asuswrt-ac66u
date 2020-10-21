@@ -305,13 +305,15 @@ extern int get_lang_num();
 extern int ej_get_iptvSettings(int eid, webs_t wp, int argc, char_t **argv);
 extern int config_iptv_vlan(char *isp);
 
+#ifdef RTCONFIG_CAPTCHA
+extern void do_captcha_file(char *url, FILE *stream);
+#endif
+
 #if 0
 static int nvram_check_and_set(char *name, char *value);
 #endif
 static int nvram_check_and_set_for_prefix(char *name, char *tmp, char *value);
 #define wan_prefix(unit, prefix)	snprintf(prefix, sizeof(prefix), "wan%d_", unit)
-
-#define nvram_default_safe_get(name) (nvram_default_get(name) ? : "")
 
 /*
 #define csprintf(fmt, args...) do{\
@@ -432,9 +434,10 @@ extern char cloud_file[256];
 #endif
 
 #ifdef RTCONFIG_CFGSYNC
-#define CFG_JSON_FILE           "/jffs/cfg.json"
+#define CFG_JSON_FILE           "/tmp/cfg.json"
 #define CFG_SERVER_PID		"/var/run/cfg_server.pid"
 int cfg_changed = 0;
+int is_cfg_server_ready();
 void save_changed_param(json_object *cfg_root, char *param);
 int check_cfg_changed(json_object *root);
 static int is_wireless_client(char *mac);
@@ -476,6 +479,19 @@ typedef enum AMAS_JSON_FORMAT_S
 	AMAS_JSON_CLIENT_KEY,
 }AMAS_DATA_FORMAT_T;
 #endif
+
+static int
+isValidtimestamp_noletter(char *timestamp)
+{
+	time_t ts;
+	char *ptr = NULL;
+
+	ts = (time_t)strtol(timestamp, &ptr, 10);
+	if((0 < ts && ts < 2145888000L) && (ptr && strlen(ptr) == 0))
+		return 1;
+	else
+		return 0;
+}
 
 #ifdef RTCONFIG_USB
 static void insert_hook_func(webs_t wp, char *fname, char *param)
@@ -3604,7 +3620,7 @@ int validate_apply(webs_t wp, json_object *root) {
 	if(acc_modified){
 		// ugly solution?
 #ifdef RTCONFIG_CFGSYNC
-		if (nvram_match("x_Setting", "1") && pids("cfg_server"))
+		if (is_cfg_server_ready())
 			strlcat(acc_action_script, "chpass", sizeof(acc_action_script));
 		else
 #endif
@@ -3630,7 +3646,7 @@ int validate_apply(webs_t wp, json_object *root) {
 			mod_account(orig_acc, modified_acc, modified_pass);
 
 #ifdef RTCONFIG_CFGSYNC
-		if (nvram_match("x_Setting", "1") && pids("cfg_server")) {
+		if (is_cfg_server_ready()) {
 			if (strlen(acc_action_script))
 				strlcat(acc_action_script, ";", sizeof(acc_action_script));
 			strlcat(acc_action_script, "restart_ftpsamba", sizeof(acc_action_script));
@@ -3709,8 +3725,7 @@ int validate_apply(webs_t wp, json_object *root) {
 			nvram_set("w_Setting", "1");
 
 #ifdef RTCONFIG_CFGSYNC
-		if (nvram_match("x_Setting", "1") && pids("cfg_server") &&
-			check_if_file_exist(CFG_SERVER_PID))
+		if (is_cfg_server_ready())
 		{
 			/* add action_script */
 			if (!acc_modified && strlen(action_script) > 0)
@@ -4609,8 +4624,7 @@ static int ej_update_variables(int eid, webs_t wp, int argc, char_t **argv)
 				{
 #ifdef RTCONFIG_CFGSYNC
 
-					if (nvram_match("x_Setting", "1") && cfg_changed && pids("cfg_server") &&
-						check_if_file_exist(CFG_SERVER_PID))
+					if (cfg_changed && is_cfg_server_ready())
 					{
 						/* trigger cfg_server to send notification */
 						kill_pidfile_s(CFG_SERVER_PID, SIGUSR2);
@@ -4626,8 +4640,7 @@ static int ej_update_variables(int eid, webs_t wp, int argc, char_t **argv)
 #ifdef RTCONFIG_CFGSYNC
 				else if (strcmp(action_script, "saveNvram") == 0)
 				{
-					if (nvram_match("x_Setting", "1") && cfg_changed && pids("cfg_server") &&
-						check_if_file_exist(CFG_SERVER_PID))
+					if (cfg_changed && is_cfg_server_ready())
 					{
 						/* trigger cfg_server to send notification */
 						kill_pidfile_s(CFG_SERVER_PID, SIGUSR2);
@@ -7830,6 +7843,7 @@ static int get_amas_re_client_info(struct json_object *json_object_ptr) { //get 
 		char sta5g_buf[32] = {0};
 		char papMac_buf[32] = {0};
 		char band_buf[16] = {0};
+		char band_prefix_buf[16] = {0};
 
 		lock = file_lock(CFG_FILE_LOCK);
 		shm_client_tbl_id = shmget((key_t)KEY_SHM_CFG, sizeof(CM_CLIENT_TABLE), 0666|IPC_CREAT);
@@ -7894,11 +7908,17 @@ static int get_amas_re_client_info(struct json_object *json_object_ptr) { //get 
 				snprintf(band_buf, sizeof(band_buf), "%s", key);
 				json_object_object_foreach(bandObj, key, val) {
 					amas_re_client_attr = json_object_new_object();
-					if(!strcmp(band_buf, "2G") || !strcmp(band_buf, "2G_1") || !strcmp(band_buf, "2G_2") || !strcmp(band_buf, "2G_3"))
+					if (strstr(band_buf, "_")) {
+						memset(band_prefix_buf, 0, sizeof(band_prefix_buf));
+						sscanf(band_buf, "%[^_]", band_prefix_buf);//get prefix band, 2G_1/2G_2/2G_3/5G_1/5G_2/5G_3/5G1_1/5G1_2/5G1_3...
+						memset(band_buf, 0, sizeof(band_buf));
+						snprintf(band_buf, sizeof(band_buf), "%s", band_prefix_buf);
+					}
+					if (!strcmp(band_buf, "2G"))
 						json_object_object_add(amas_re_client_attr, "isWL", json_object_new_string("1"));
-					else if(!strcmp(band_buf, "5G") || !strcmp(band_buf, "5G_1") || !strcmp(band_buf, "5G_2") || !strcmp(band_buf, "5G_3"))
+					else if (!strcmp(band_buf, "5G"))
 						json_object_object_add(amas_re_client_attr, "isWL", json_object_new_string("2"));
-					else if(!strcmp(band_buf, "5G1")|| !strcmp(band_buf, "5G1_1") || !strcmp(band_buf, "5G1_2") || !strcmp(band_buf, "5G1_3"))
+					else if (!strcmp(band_buf, "5G1"))
 						json_object_object_add(amas_re_client_attr, "isWL", json_object_new_string("3"));
 					else
 						json_object_object_add(amas_re_client_attr, "isWL", json_object_new_string("0"));
@@ -8049,6 +8069,7 @@ static int get_amas_re_client_detail_info(struct json_object *json_object_ptr) {
 	if (clietListObj) {
 		char papMac_buf[32] = {0};
 		char band_buf[16] = {0};
+		char band_prefix_buf[16] = {0};
 		json_object_object_foreach(clietListObj, key, val) {
 			brMacObj = val;
 			memset(papMac_buf, 0, sizeof(papMac_buf));
@@ -8065,15 +8086,21 @@ static int get_amas_re_client_detail_info(struct json_object *json_object_ptr) {
 						char client_key[40] = {0};
 						memset(client_key, 0, sizeof(client_key));
 						amas_re_client_detail_attr = json_object_new_object();
-						if(!strcmp(band_buf, "2G") || !strcmp(band_buf, "2G_1") || !strcmp(band_buf, "2G_2") || !strcmp(band_buf, "2G_3")) {
+						if (strstr(band_buf, "_")) {
+							memset(band_prefix_buf, 0, sizeof(band_prefix_buf));
+							sscanf(band_buf, "%[^_]", band_prefix_buf);//get prefix band, 2G_1/2G_2/2G_3/5G_1/5G_2/5G_3/5G1_1/5G1_2/5G1_3...
+							memset(band_buf, 0, sizeof(band_buf));
+							snprintf(band_buf, sizeof(band_buf), "%s", band_prefix_buf);
+						}
+						if (!strcmp(band_buf, "2G")) {
 							json_object_object_add(amas_re_client_detail_attr, "isWL", json_object_new_string("1"));
 							isWL = 1;
 						}
-						else if(!strcmp(band_buf, "5G") || !strcmp(band_buf, "5G_1") || !strcmp(band_buf, "5G_2") || !strcmp(band_buf, "5G_3")) {
+						else if (!strcmp(band_buf, "5G")) {
 							json_object_object_add(amas_re_client_detail_attr, "isWL", json_object_new_string("2"));
 							isWL = 2;
 						}
-						else if(!strcmp(band_buf, "5G1")|| !strcmp(band_buf, "5G1_1") || !strcmp(band_buf, "5G1_2") || !strcmp(band_buf, "5G1_3")) {
+						else if (!strcmp(band_buf, "5G1")) {
 							json_object_object_add(amas_re_client_detail_attr, "isWL", json_object_new_string("3"));
 							isWL = 3;
 						}
@@ -10727,8 +10754,7 @@ apply_cgi(webs_t wp, char_t *urlPrefix, char_t *webDir, int arg,
 
 		if(action_para && strlen(action_para) > 0) {
 #ifdef RTCONFIG_CFGSYNC
-			if (nvram_match("x_Setting", "1") && cfg_changed && pids("cfg_server") &&
-				check_if_file_exist(CFG_SERVER_PID))
+			if (cfg_changed && is_cfg_server_ready())
 			{
 
 				json_object *cfg_root = NULL;
@@ -13137,14 +13163,13 @@ err:
 static void
 do_upload_cert_key_cgi(char *url, FILE *stream)
 {
-	_dprintf("do_upload_cert_key_cgi\n");
+	//_dprintf("do_upload_cert_key_cgi\n");
 }
 #endif
 
 static void
-do_download_cert_key_cgi(char *url, FILE *stream)
+do_download_cert_key_cgi(char *url, FILE *stream)//for DUT
 {
-	_dprintf("do_download_cert_key_cgi\n");
 	eval("tar", "cf",
 		"/tmp/cert_key.tar",
 		"-C",
@@ -13153,6 +13178,18 @@ do_download_cert_key_cgi(char *url, FILE *stream)
 		"key.pem"
 		);
 	do_file("/tmp/cert_key.tar", stream);
+}
+
+static void
+do_download_cert_cgi(char *url, FILE *stream)//for browser
+{
+	eval("tar", "cf",
+		"/tmp/cert.tar",
+		"-C",
+		"/etc",
+		"cert.crt"
+		);
+	do_file("/tmp/cert.tar", stream);
 }
 
 // Viz 2010.08
@@ -14556,81 +14593,90 @@ static void do_athX_state_cgi(char *url, FILE *stream)
 static void
 do_blocking_request_cgi(char *url, FILE *stream)
 {
-	struct json_object *root=NULL;
-	char *block_CName, *block_mac,*block_interval, *block_timestap;
-	char *block_mac_t, *block_timestap_t;
+	struct json_object *root = NULL, *nc_root = NULL;
+	char block_CName[32] = {0}, block_mac[18] = {0},block_interval[10] = {0}, block_timestamp[11] = {0};
+	char *block_mac_t = NULL, *block_timestamp_t = NULL;
 	char nvramTmp[4096]={0};
-	char *buf, *g, *p;
-	int retStatus=0;
-	char filename[128];
-	memset(filename, 0, 128);
+	char *buf = NULL, *g = NULL, *p = NULL;
+	int retStatus = 0;
+	char filename[128] = {0};
 
 	do_json_decode(&root);
-	block_CName = safe_get_cgi_json("CName", root);
-	block_mac = safe_get_cgi_json("mac", root);
-	block_interval = safe_get_cgi_json("interval", root);
-	block_timestap = safe_get_cgi_json("timestap", root);
+	strlcpy(block_CName, safe_get_cgi_json("CName", root), sizeof(block_CName));
+	strlcpy(block_mac, safe_get_cgi_json("mac", root), sizeof(block_mac));
+	strlcpy(block_interval, safe_get_cgi_json("interval", root), sizeof(block_interval));
+	strlcpy(block_timestamp, safe_get_cgi_json("timestap", root), sizeof(block_timestamp));
 
+	if(!isValidMacAddress(block_mac)){
+		goto FINISH;
+	}
+	if(!isValidtimestamp_noletter(block_timestamp)){
+		goto FINISH;
+	}
+
+	if(!isValidtimestamp_noletter(block_interval)){
+		goto FINISH;
+	}
 
 	time_t now = uptime();
 	time(&now);
 
-	//_dprintf("%s: block_CName = %s, block_mac = %s, block_timestr = \"%ld\", block_timestap = %s\n", __func__, block_CName, block_mac, now, block_timestap);
-	if(abs((unsigned long)(now + 3600) - atol(block_timestap)) > 20 || strstr(nvram_safe_get("MULTIFILTER_MAC"), block_mac) == NULL){
+	//_dprintf("%s: block_CName = %s, block_mac = %s, block_timestr = \"%ld\", block_timestamp = %s\n", __func__, block_CName, block_mac, now, block_timestamp);
+	if(abs((unsigned long)(now + 3600) - atol(block_timestamp)) > 20 || strstr(nvram_safe_get("MULTIFILTER_MAC"), block_mac) == NULL){
 		_dprintf("blocking_request_cgi: not valid blocking request\n");
-		if (root != NULL) 
-			json_object_put(root);
-		return;
+		goto FINISH;
 	}
 	g = buf = strdup(nvram_safe_get("MULTIFILTER_TMP_T"));
 	while (buf) {
 		if ((p = strsep(&g, "<")) == NULL) break;
-		if((vstrsep(p, ">", &block_mac_t, &block_timestap_t)) != 2) continue;
-		if((now-atol(block_timestap_t)) > 0){
+		if((vstrsep(p, ">", &block_mac_t, &block_timestamp_t)) != 2) continue;
+		if((now-atol(block_timestamp_t)) > 0){
 			continue;
 		}else{
 			if(!strcmp(block_mac_t, block_mac))
 				retStatus = 1; //find blocking mac alive
 
-			strcat(nvramTmp, "<");
-			strcat(nvramTmp, block_mac_t);
-			strcat(nvramTmp, ">");
-			strcat(nvramTmp, block_timestap_t);
+			strlcat(nvramTmp, "<", sizeof(nvramTmp));
+			strlcat(nvramTmp, block_mac_t, sizeof(nvramTmp));
+			strlcat(nvramTmp, ">", sizeof(nvramTmp));
+			strlcat(nvramTmp, block_timestamp_t, sizeof(nvramTmp));
 		}
 	}
 	free(buf);
 
 	if(retStatus == 0){
-		strcat(nvramTmp, "<");
-		strcat(nvramTmp, block_mac);
-		strcat(nvramTmp, ">");
-		strcat(nvramTmp, block_timestap);
+		strlcat(nvramTmp, "<", sizeof(nvramTmp));
+		strlcat(nvramTmp, block_mac, sizeof(nvramTmp));
+		strlcat(nvramTmp, ">", sizeof(nvramTmp));
+		strlcat(nvramTmp, block_timestamp, sizeof(nvramTmp));
 	}
 
 	nvram_set("MULTIFILTER_TMP_T", nvramTmp);
-	nvram_commit();
 
-	json_object *nc_root = json_object_new_object();
+	nc_root = json_object_new_object();
 
 	if (nc_root == NULL) {
 		_dprintf("[%s(%d)]new json object error", __FUNCTION__, __LINE__);
 		char nt_tmp[MAX_EVENT_INFO_LEN];
-		snprintf(nt_tmp, sizeof(nt_tmp), "{\"CName\":\"%s\", \"MacAddress\":\"%s\", \"Interval\":\"%s\", \"TimeStamp\":\"%s\"}", block_CName, block_mac, block_interval, block_timestap);
+		snprintf(nt_tmp, sizeof(nt_tmp), "{\"CName\":\"%s\", \"MacAddress\":\"%s\", \"Interval\":\"%s\", \"TimeStamp\":\"%s\"}", block_CName, block_mac, block_interval, block_timestamp);
 		SEND_NT_EVENT(ADMIN_LOGIN_FAIL_LAN_WEB_EVENT, nt_tmp);
 	} else {
 		json_object_object_add(nc_root, "CName", json_object_new_string(block_CName));
 		json_object_object_add(nc_root, "MacAddress", json_object_new_string(block_mac));
 		json_object_object_add(nc_root, "Interval", json_object_new_string(block_interval));
-		json_object_object_add(nc_root, "TimeStamp", json_object_new_string(block_timestap));
+		json_object_object_add(nc_root, "TimeStamp", json_object_new_string(block_timestamp));
 		SEND_NT_EVENT(PERMISSION_FROM_TIME_SCHEDULE_EVENT, json_object_to_json_string(nc_root));
 	}
-
-	json_object_put(root);
-	json_object_put(nc_root);
 
 	memset(filename, 0, 128);
 	snprintf(filename, sizeof(filename), "blocking.asp?mac=%s", block_mac);
 	websRedirect(stream, filename);
+
+FINISH:
+	if(root)
+		json_object_put(root);
+	if(nc_root)
+	json_object_put(nc_root);
 }
 
 static void
@@ -15541,6 +15587,11 @@ login_cgi(webs_t wp, char_t *urlPrefix, char_t *webDir, int arg,
 	char filename[128];
 	memset(filename, 0, sizeof(filename));
 	memset(asus_token, 0, sizeof(asus_token));
+#ifdef RTCONFIG_CAPTCHA
+	int captcha_right = 0;
+	char *cpatcha_t;
+	unsigned char captcha_text[6];
+#endif
 
 	fromapp_flag = check_user_agent(user_agent);
 
@@ -15559,6 +15610,12 @@ login_cgi(webs_t wp, char_t *urlPrefix, char_t *webDir, int arg,
 		authpass_fail = 1;
 	}else
 		*authpass++ = '\0';
+
+#ifdef RTCONFIG_CAPTCHA
+	cpatcha_t = websGetVar(wp, "login_captcha","");
+	l = b64_decode( &(cpatcha_t[0]), (unsigned char*) captcha_text, sizeof(captcha_text) );
+	captcha_text[l] = '\0';
+#endif
 
 	time_t now;
 	time_t dt;
@@ -15631,9 +15688,36 @@ login_cgi(webs_t wp, char_t *urlPrefix, char_t *webDir, int arg,
 		websWrite(wp,"Content-Type: %s\r\n", "application/json;charset=UTF-8");
 	}
 
+#ifdef RTCONFIG_CAPTCHA
+	if( (cur_login_ip_type? login_try_wan: login_try) < CAPTCHA_MAX_LOGIN_NUM ||
+		((cur_login_ip_type? login_try_wan: login_try) >= CAPTCHA_MAX_LOGIN_NUM && is_captcha_match(captcha_text)) )
+	{
+		captcha_right = 1;
+	}
+	else{
+		captcha_right = 0;
+		HTTPD_DBG("Wrong captcha!\n");
+		websWrite(wp,"Connection: close\r\n" );
+		websWrite(wp,"\r\n" );
+		login_error_status = WRONGCAPTCHA;
+		if(fromapp_flag != 0){
+				websWrite(wp, "{\n\"error_status\":\"%d\"\n}\n", login_error_status);
+		}else{
+			websWrite(wp,"<HTML><HEAD>\n" );
+			websWrite(wp,"<script>parent.location.href='/Main_Login.asp';</script>\n");
+			websWrite(wp,"</HEAD></HTML>\n" );
+		}
+		return 0;
+	}
+#endif
+
 	/* Is this the right user and password? */
 	//if (!authpass_fail && nvram_match("http_username", authinfo) && nvram_match("http_passwd", authpass))
-	if (!authpass_fail && nvram_match("http_username", authinfo) && compare_passwd_in_shadow(authinfo, authpass))
+	if (!authpass_fail && nvram_match("http_username", authinfo) && compare_passwd_in_shadow(authinfo, authpass)
+#ifdef RTCONFIG_CAPTCHA
+		&& captcha_right
+#endif
+		)
 	{
 		HTTPD_DBG("authpass!\n");
 		if (fromapp_flag == FROM_BROWSER){
@@ -16683,19 +16767,19 @@ do_amazon_wss_cgi(char *url, FILE *stream)
 
 	if(!isValidEnableOption(wss_enable, 1)){
 		HTTPD_DBG("invalid enabled option\n");
-		ret = 4001;
+		ret = HTTP_INVALID_ENABLE_OPT;
 		goto FINISH;
 	}
 
 	if(!isValidEnableOption(do_rc, 1)){
 		HTTPD_DBG("invalid enabled option\n");
-		ret = 4002;
+		ret = HTTP_INVALID_ENABLE_OPT;
 		goto FINISH;
 	}
 
 	if(num_of_mssid_support(0) < 2){
 		HTTPD_DBG("mssid is not support\n");
-		ret = 4003;
+		ret = HTTP_INVALID_SUPPORT;
 		goto FINISH;
 	}
 
@@ -17091,7 +17175,7 @@ do_del_client_data_cgi(char *url, FILE *stream) {
 	nvram_commit();
 
 #ifdef RTCONFIG_CFGSYNC
-	if (nvram_match("x_Setting", "1") && pids("cfg_server") && check_if_file_exist(CFG_SERVER_PID))
+	if (is_cfg_server_ready())
 	{
 		char cfg_ver[9] = {0};
 
@@ -17168,6 +17252,9 @@ do_bandwidth_monitor_ej(char *url, FILE *stream) {
 //2008.08 magic{
 struct mime_handler mime_handlers[] = {
 	{ "Main_Login.asp", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
+#ifdef RTCONFIG_CAPTCHA
+	{ "captcha.gif", "image/gif", no_cache_IE7, NULL, do_captcha_file, NULL },
+#endif
 	{ "Nologin.asp", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
 	{ "error_page.htm*", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
 	{ "blocking.asp", "text/html", no_cache_IE7, do_html_post_and_get, do_ej, NULL },
@@ -17285,6 +17372,7 @@ struct mime_handler mime_handlers[] = {
 	{ "upload_cert_key.cgi*", "text/html", no_cache_IE7, do_upload_cert_key, do_upload_cert_key_cgi, do_auth },
 #endif
 	{ "cert_key.tar", "application/force-download", NULL, do_html_post_and_get, do_download_cert_key_cgi, do_auth },
+	{ "cert.tar", "application/force-download", NULL, do_html_post_and_get, do_download_cert_cgi, do_auth },
 #if defined(RTCONFIG_IFTTT) || defined(RTCONFIG_ALEXA)
 	{ "get_IFTTTPincode.cgi", "text/html", no_cache_IE7, do_html_post_and_get, do_get_IFTTTPincode_cgi, do_auth },
 	{ "send_IFTTTPincode.cgi", "text/html", no_cache_IE7, do_html_post_and_get, do_send_IFTTTPincode_cgi, do_auth },
@@ -17388,6 +17476,9 @@ struct except_mime_handler except_mime_handlers[] = {
 	{ "page_default.cgi", MIME_EXCEPTION_NOAUTH_FIRST|MIME_EXCEPTION_NORESETTIME},
 	{ "images/New_ui/login_bg.png", MIME_EXCEPTION_MAINPAGE},
 	{ "images/New_ui/icon_titleName.png", MIME_EXCEPTION_MAINPAGE},
+#ifdef RTCONFIG_CAPTCHA
+	{ "captcha.gif", MIME_EXCEPTION_MAINPAGE},
+#endif
 #ifdef RTCONFIG_WIFI_SON
 	{ "QIS_*", MIME_EXCEPTION_NOAUTH_FIRST},
 	{ "qis/*", MIME_EXCEPTION_NOAUTH_FIRST},
@@ -18789,7 +18880,7 @@ int ej_get_folder_tree(int eid, webs_t wp, int argc, char **argv){
 			else
 				websWrite(wp, ", ");
 
-			websWrite(wp, "'%s#%u#%u'", follow_disk->tag, disk_count, partition_count);
+			websWrite(wp, "\"%s#%u#%u\"", follow_disk->tag, disk_count, partition_count);
 		}
 
 		if (layer > 0 && disk_count == disk_order)
@@ -18892,7 +18983,7 @@ int ej_get_share_tree(int eid, webs_t wp, int argc, char **argv){
 			else
 				websWrite(wp, ", ");
 
-			websWrite(wp, "'%s#%u#%u'", follow_disk->tag, disk_count, partition_count);
+			websWrite(wp, "\"%s#%u#%u\"", follow_disk->tag, disk_count, partition_count);
 		}
 
 		if (layer > 0 && disk_count == disk_order)
@@ -21540,6 +21631,19 @@ ej_bwdpi_monitor_nonips(int eid, webs_t wp, int argc, char_t **argv)
 
 	return retval;
 }
+
+static int
+ej_bwdpi_maclist_db(int eid, webs_t wp, int argc, char_t **argv)
+{
+	int retval = 0;
+	char *type = NULL;
+
+	type = websGetVar(wp, "type", "");
+
+	bwdpi_maclist_db(type, &retval, wp);
+
+	return retval;
+}
 #else
 static int
 ej_bwdpi_engine_status(int eid, webs_t wp, int argc, char_t **argv)
@@ -22672,9 +22776,18 @@ static int ej_show_info_between_nodes(int eid, webs_t wp, int argc, char **argv)
 #endif
 
 #ifdef RTCONFIG_CFGSYNC
+int is_cfg_server_ready()
+{
+	if (nvram_match("x_Setting", "1") && (nvram_get_int("cfg_recount") > 0) &&
+		pids("cfg_server") && check_if_file_exist(CFG_SERVER_PID))
+		return 1;
+
+	return 0;
+}
+
 void save_changed_param(json_object *cfg_root, char *param)
 {
-	if (nvram_match("x_Setting", "1") && pids("cfg_server")){
+	if (is_cfg_server_ready()){
 		json_object *tmp = NULL;
 		struct param_mapping_s *pParam = &param_mapping_list[0];
 
@@ -24205,6 +24318,11 @@ ej_login_error_info(int eid, webs_t wp, int argc, char **argv)
 	/* error status */
 	json_object_object_add(item,"error_status", json_object_new_int(login_error_status));
 
+#ifdef RTCONFIG_CAPTCHA
+	/* error number */
+	json_object_object_add(item,"error_num", json_object_new_int(cur_login_ip_type? login_try_wan: login_try));
+#endif
+
 	/* url */
 	if(check_xss_blacklist(login_url, 1)){
 		json_object_object_add(item,"page", json_object_new_string(indexpage));
@@ -25432,6 +25550,7 @@ struct ej_handler ej_handlers[] = {
 	{ "bwdpi_monitor_info", ej_bwdpi_monitor_info},
 	{ "bwdpi_monitor_ips", ej_bwdpi_monitor_ips},
 	{ "bwdpi_monitor_nonips", ej_bwdpi_monitor_nonips},
+	{ "bwdpi_maclist_db", ej_bwdpi_maclist_db},
 #else
 	{ "bwdpi_engine_status", ej_bwdpi_engine_status},
 #endif

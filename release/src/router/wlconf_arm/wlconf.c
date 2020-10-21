@@ -2057,6 +2057,24 @@ wlconf(char *name)
 		WL_IOVAR_SETINT(name, "psta", PSTA_MODE_DISABLED);
 	}
 
+#ifdef RTCONFIG_BCN_RPT
+        str = nvram_safe_get(strcat_r(prefix, "rrm", tmp));
+        if (str) {
+                val = strtol(str, NULL, 0);
+                WL_IOVAR_SETINT(name, "rrm", val);
+        }
+
+        for (i = 0; i < bclist->count; i++) {
+                val = 0;
+                bsscfg = &bclist->bsscfgs[i];
+                str = nvram_safe_get(strcat_r(bsscfg->prefix, "rrm", tmp));
+                if (str) {
+                        val = strtol(str, NULL, 0);
+                        WL_BSSIOVAR_SETINT(name, "rrm", bsscfg->idx, val);
+                }
+        }
+#endif
+
 	/* Turn WET tunnel mode ON or OFF */
 	if ((ap || apsta) && (wet_tunnel_cap)) {
 		if (atoi(nvram_safe_get(strcat_r(prefix, "wet_tunnel", tmp))) == 1) {

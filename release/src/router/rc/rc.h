@@ -679,7 +679,7 @@ static inline const void *req_fw_hook(const char *filename, size_t *new_size) { 
 
 /* board API under sysdeps/init-broadcom.c sysdeps/broadcom sysdeps/tcode_brcm.c */
 extern void init_others(void);
-#if defined(CONFIG_BCMWL5) || defined(RTCONFIG_WIRELESSREPEATER)
+#if defined(CONFIG_BCMWL5)
 extern int is_ure(int unit);
 #endif
 #ifdef CONFIG_BCMWL5
@@ -718,6 +718,8 @@ extern int wl_subband(char *wif, int idx);
 #if defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
 extern void check_4366_dummy(void);
 extern void check_4366_fabid(void);
+extern void dummy_alert_led_wifi(void);
+extern int dummy_alert_led_pwr(void);
 #endif
 extern void wl_dfs_radarthrs_config(char *ifname, int unit);
 #if defined(RTCONFIG_BCM7) || defined(RTCONFIG_BCM_7114) || defined(HND_ROUTER)
@@ -781,10 +783,11 @@ extern void hnd_nat_ac_init(int bootup);
 extern void setLANLedOn(void);
 extern void setLANLedOff(void);
 extern int mtd_erase_image_update();
+extern int mtd_erase_misc2();
 extern int wait_to_forward_state(char *ifname);
-#ifndef RTCONFIG_HND_ROUTER_AX
-extern void wl_fail_db(int unit, int state, int count);
 #endif
+#if (defined(HND_ROUTER) && !defined(RTCONFIG_HND_ROUTER_AX)) || defined(RTCONFIG_BCM_7114)
+extern void wl_fail_db(int unit, int state, int count);
 #endif
 #ifdef RTCONFIG_BCMWL6
 extern int hw_vht_cap();
@@ -796,11 +799,16 @@ void set_dpsta_ifnames();
 #ifdef RTAC86U
 extern void hnd_cfe_check();
 #endif
+#if defined(HND_ROUTER) || defined(RTCONFIG_BCM_7114) || defined(RTCONFIG_BCM4708)
+extern void wl_driver_mode_update(void);
+extern void dump_WlGetDriverStats(int fb, int count);
+#endif
 #ifdef RTCONFIG_RGBLED
 extern int setRogRGBLedTest(int RGB);
 #endif
 extern void hnd_set_hwstp(void);
 #endif
+extern int wl_max_no_vifs(int unit);
 
 #ifdef RTCONFIG_AMAS
 enum {
